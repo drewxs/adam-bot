@@ -15,6 +15,10 @@ const ADAM_ID: u64 = 281207443105644544;
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
+        if msg.author.id == BOT_ID {
+            return;
+        }
+
         let mentioned = msg.mentions_me(&ctx.http).await.unwrap_or(false);
         if mentioned {
             msg.channel_id.say(&ctx.http, "?").await.unwrap();
