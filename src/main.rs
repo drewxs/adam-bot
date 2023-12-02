@@ -89,6 +89,9 @@ impl EventHandler for Handler {
         } else if content.contains("kimono") {
             let res = "I LOVE WEEB ROBE";
             msg.channel_id.say(&ctx, res).await.unwrap();
+        } else if content.contains("work") {
+            let res = "work chan uwu";
+            msg.channel_id.say(&ctx, res).await.unwrap();
         } else if content.contains("thank") {
             let res = "your WELcome";
             msg.channel_id.say(&ctx, res).await.unwrap();
