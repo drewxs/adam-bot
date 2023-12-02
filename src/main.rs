@@ -48,6 +48,16 @@ const ADAM_MESSAGES: [&str; 10] = [
     "quack",
 ];
 
+const WEEB_MESSAGES: [&str; 7] = [
+    "I LOVE WEEB ROBE",
+    "its ramen time",
+    "guys they do real jujutsu in jujutsu kaisen",
+    "im not watching that",
+    "oshiete yo",
+    "lads",
+    "guys, wanna go japann?",
+];
+
 struct Handler;
 
 #[async_trait]
@@ -66,7 +76,7 @@ impl EventHandler for Handler {
         let content = content_og.to_lowercase();
         let mentioned = content.contains("adam");
 
-        if msg.mentions.len() > 0 {
+        if msg.author.id != ADAM_ID && msg.mentions.len() > 0 {
             return;
         } else if msg.author.id == ADAM_ID {
             if content == "?" {
@@ -75,6 +85,7 @@ impl EventHandler for Handler {
             } else {
                 if msg.guild_id.is_none() {
                     // adam is directly messaging the bot for some reason
+                    println!("Adam: {}", content_og);
                     let res = ADAM_MESSAGES[thread_rng().gen_range(0..10)];
                     msg.channel_id.say(&ctx, res).await.unwrap();
                 } else if msg.attachments.len() > 0 {
@@ -86,17 +97,17 @@ impl EventHandler for Handler {
                     msg.channel_id.say(&ctx, edited_msg).await.unwrap();
                 }
             }
+        } else if msg.attachments.len() > 0 {
+            let res = "pikchur";
+            msg.channel_id.say(&ctx, res).await.unwrap();
         } else if mentioned {
-            if content.contains("you") {
+            if content.contains("you") || content.contains("u") || content.contains("can") {
                 let res = "NO";
                 msg.channel_id.say(&ctx, res).await.unwrap();
             } else {
                 let res = "QUACK!";
                 msg.channel_id.say(&ctx, res).await.unwrap();
             }
-        } else if content_og.contains("ADAM") {
-            let res = "WHAT";
-            msg.channel_id.say(&ctx, res).await.unwrap();
         } else if content.contains("join") {
             join_channel(&ctx, &msg).await;
         } else if content.contains("leave") {
@@ -108,14 +119,35 @@ impl EventHandler for Handler {
                 .say(&ctx, "what do you meeeeeeean")
                 .await
                 .unwrap();
-        } else if content.contains("kimono") {
-            let res = "I LOVE WEEB ROBE";
+        } else if content.contains("anime")
+            || content.contains("kimono")
+            || content.contains("japan")
+        {
+            let res = WEEB_MESSAGES[thread_rng().gen_range(0..7)];
             msg.channel_id.say(&ctx, res).await.unwrap();
         } else if content.contains("work") {
             let res = "work chan uwu";
             msg.channel_id.say(&ctx, res).await.unwrap();
+        } else if content.contains("car") {
+            let res = "guys, i am more than just a car guy";
+            msg.channel_id.say(&ctx, res).await.unwrap();
+        } else if content.contains("food") {
+            let res = "you can eat cars";
+            msg.channel_id.say(&ctx, res).await.unwrap();
+        } else if content.contains("fat") {
+            let res = "";
+            msg.channel_id.say(&ctx, res).await.unwrap();
         } else if content.contains("thank") {
             let res = "your WELcome";
+            msg.channel_id.say(&ctx, res).await.unwrap();
+        } else if content.contains("why") {
+            let res = "cuz the lord of cars said so";
+            msg.channel_id.say(&ctx, res).await.unwrap();
+        } else if content.contains("sure") {
+            let res = "absolutely";
+            msg.channel_id.say(&ctx, res).await.unwrap();
+        } else if content.contains("hate") {
+            let res = "i hate myself too";
             msg.channel_id.say(&ctx, res).await.unwrap();
         } else if content.contains("night") {
             let res = "gooodniiiight";
@@ -126,9 +158,15 @@ impl EventHandler for Handler {
                 .direct_message(ctx, CreateMessage::new().content(res))
                 .await
                 .unwrap();
-        } else {
+        } else if content_og.contains("ADAM") {
+            let res = "WHAT";
+            msg.channel_id.say(&ctx, res).await.unwrap();
+        } else if content_og.contains("fact") || content_og.contains("trivia") {
             let rand_idx = thread_rng().gen_range(0..100);
             let res = CAR_FACTS[rand_idx % CAR_FACTS.len()];
+            msg.channel_id.say(&ctx, res).await.unwrap();
+        } else {
+            let res = "car";
             msg.channel_id.say(&ctx, res).await.unwrap();
         }
     }
