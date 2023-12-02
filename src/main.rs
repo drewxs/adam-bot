@@ -35,6 +35,19 @@ const CAR_FACTS: [&str; 20] = [
     "The iconic \"Jeep\" name comes from the phonetic pronunciation of \"G.P.,\" which stands for General Purpose or Government Purpose vehicle."
 ];
 
+const ADAM_MESSAGES: [&str; 10] = [
+    "oh hello there fake adam",
+    "im you",
+    "don't you see?",
+    "i'm you but stronger",
+    "i AM a car",
+    "you will never be a car",
+    "muahahaha",
+    "no one will believe you",
+    "adam listen",
+    "quack",
+];
+
 struct Handler;
 
 #[async_trait]
@@ -60,9 +73,18 @@ impl EventHandler for Handler {
                 let res = "?";
                 msg.channel_id.say(&ctx, res).await.unwrap();
             } else {
-                let edited_msg = format!("{} dattebayo", content_og);
-                msg.delete(&ctx.http).await.unwrap();
-                msg.channel_id.say(&ctx, edited_msg).await.unwrap();
+                if msg.guild_id.is_none() {
+                    // adam is directly messaging the bot for some reason
+                    let res = ADAM_MESSAGES[thread_rng().gen_range(0..10)];
+                    msg.channel_id.say(&ctx, res).await.unwrap();
+                } else if msg.attachments.len() > 0 {
+                    let res = "look";
+                    msg.channel_id.say(&ctx, res).await.unwrap();
+                } else {
+                    let edited_msg = format!("{} dattebayo", content_og);
+                    msg.delete(&ctx.http).await.unwrap();
+                    msg.channel_id.say(&ctx, edited_msg).await.unwrap();
+                }
             }
         } else if mentioned {
             if content.contains("you") {
