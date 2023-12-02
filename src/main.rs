@@ -9,8 +9,6 @@ use serenity::model::gateway::Ready;
 use serenity::prelude::*;
 use std::env;
 
-struct Handler;
-
 const BOT_ID: u64 = 1179957141688291498;
 const ADAM_ID: u64 = 281207443105644544;
 
@@ -37,6 +35,8 @@ const CAR_FACTS: [&str; 20] = [
     "The iconic \"Jeep\" name comes from the phonetic pronunciation of \"G.P.,\" which stands for General Purpose or Government Purpose vehicle."
 ];
 
+struct Handler;
+
 #[async_trait]
 impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
@@ -49,65 +49,62 @@ impl EventHandler for Handler {
             msg.channel_id.say(&ctx.http, "?").await.unwrap();
         }
 
-        let content = msg.content.as_str();
+        let content_og = msg.content.as_str();
+        let content = content_og.to_lowercase();
         let mentioned = content.contains("adam");
 
-        if msg.author.id == ADAM_ID {
-            let res = "dattebayo";
-            msg.channel_id.say(&ctx.http, res).await.unwrap();
+        if msg.mentions.len() > 0 {
+            return;
+        } else if msg.author.id == ADAM_ID {
+            if content == "?" {
+                let res = "?";
+                msg.channel_id.say(&ctx, res).await.unwrap();
+            } else {
+                let edited_msg = format!("{} dattebayo", content_og);
+                msg.delete(&ctx.http).await.unwrap();
+                msg.channel_id.say(&ctx, edited_msg).await.unwrap();
+            }
         } else if mentioned {
             if content.contains("you") {
-                let res = "nO";
-                msg.channel_id.say(&ctx.http, res).await.unwrap();
+                let res = "NO";
+                msg.channel_id.say(&ctx, res).await.unwrap();
             } else {
                 let res = "QUACK!";
-                msg.channel_id.say(&ctx.http, res).await.unwrap();
+                msg.channel_id.say(&ctx, res).await.unwrap();
             }
-        } else if content.contains("ADAM") {
+        } else if content_og.contains("ADAM") {
             let res = "WHAT";
-            msg.channel_id.say(&ctx.http, res).await.unwrap();
+            msg.channel_id.say(&ctx, res).await.unwrap();
         } else if content.contains("join") {
-            let (guild_id, channel_id) = {
-                let guild = msg.guild(&ctx.cache).unwrap();
-                let channel_id = guild
-                    .voice_states
-                    .get(&msg.author.id)
-                    .and_then(|voice_state| voice_state.channel_id);
-                (guild.id, channel_id)
-            };
-
-            if let Some(channel_id) = channel_id {
-                ctx.set_activity(Some(ActivityData::listening("richard's music")));
-
-                let manager = songbird::get(&ctx).await.unwrap().clone();
-                manager.join(guild_id, channel_id).await.unwrap();
-
-                let _guild = msg.guild_id.unwrap();
-            }
+            join_channel(&ctx, &msg).await;
         } else if content.contains("leave") {
-            ctx.set_activity(None);
-
-            let guild_id = msg.guild_id.unwrap();
-            let manager = songbird::get(&ctx).await.unwrap().clone();
-
-            if manager.get(guild_id).is_some() {
-                manager.remove(guild_id).await.unwrap();
-            }
-
-            msg.channel_id.say(&ctx.http, "fine then").await.unwrap();
+            leave_channel(&ctx, &msg).await;
+            let res = "fine then";
+            msg.channel_id.say(&ctx, res).await.unwrap();
         } else if content.contains("explain") {
-            let res = "what do you meeeeeeean";
-            msg.channel_id.say(&ctx.http, res).await.unwrap();
+            msg.channel_id
+                .say(&ctx, "what do you meeeeeeean")
+                .await
+                .unwrap();
+        } else if content.contains("kimono") {
+            let res = "I LOVE WEEB ROBE";
+            msg.channel_id.say(&ctx, res).await.unwrap();
+        } else if content.contains("thank") {
+            let res = "your WELcome";
+            msg.channel_id.say(&ctx, res).await.unwrap();
+        } else if content.contains("night") {
+            let res = "gooodniiiight";
+            msg.channel_id.say(&ctx, res).await.unwrap();
         } else if content.contains("fite") || content.contains("fight") {
             let res = "whAT do U wANT FrOM mE";
             msg.author
-                .direct_message(&ctx, CreateMessage::new().content(res))
+                .direct_message(ctx, CreateMessage::new().content(res))
                 .await
                 .unwrap();
         } else {
             let rand_idx = thread_rng().gen_range(0..100);
             let res = CAR_FACTS[rand_idx % CAR_FACTS.len()];
-            msg.channel_id.say(&ctx.http, res).await.unwrap();
+            msg.channel_id.say(&ctx, res).await.unwrap();
         }
     }
 
@@ -129,5 +126,36 @@ async fn main() {
 
     if let Err(error) = client.start().await {
         println!("Error occurred while running client: {:?}", error)
+    }
+}
+
+async fn join_channel(ctx: &Context, msg: &Message) {
+    let (guild_id, channel_id) = {
+        let guild = msg.guild(&ctx.cache).unwrap();
+        let channel_id = guild
+            .voice_states
+            .get(&msg.author.id)
+            .and_then(|voice_state| voice_state.channel_id);
+        (guild.id, channel_id)
+    };
+
+    if let Some(channel_id) = channel_id {
+        ctx.set_activity(Some(ActivityData::listening("richard's music")));
+
+        let manager = songbird::get(&ctx).await.unwrap().clone();
+        manager.join(guild_id, channel_id).await.unwrap();
+
+        let _guild = msg.guild_id.unwrap();
+    }
+}
+
+async fn leave_channel(ctx: &Context, msg: &Message) {
+    ctx.set_activity(None);
+
+    let guild_id = msg.guild_id.unwrap();
+    let manager = songbird::get(&ctx).await.unwrap().clone();
+
+    if manager.get(guild_id).is_some() {
+        manager.remove(guild_id).await.unwrap();
     }
 }
