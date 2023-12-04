@@ -15,6 +15,18 @@ impl Handler {
         }
     }
 
+    pub fn _get_history(&self) -> Vec<String> {
+        self.history.lock().unwrap().clone()
+    }
+
+    pub fn add_history(&self, msg: String) {
+        self.history.lock().unwrap().push(msg);
+    }
+
+    pub fn _clear_history(&self) {
+        self.history.lock().unwrap().clear();
+    }
+
     pub async fn send_msg(&self, ctx: &Context, msg: &Message, res: impl Into<String> + Clone) {
         self.add_history(res.clone().into());
         msg.channel_id.say(&ctx, res).await.unwrap();
@@ -28,19 +40,12 @@ impl Handler {
             .unwrap();
     }
 
-    pub fn _get_history(&self) -> Vec<String> {
-        self.history.lock().unwrap().clone()
-    }
-
-    pub fn add_history(&self, msg: String) {
-        self.history.lock().unwrap().push(msg);
-    }
-
-    pub fn _clear_history(&self) {
-        self.history.lock().unwrap().clear();
-    }
-
     pub async fn join_channel(&self, ctx: &Context, msg: &Message) {
+        if msg.guild_id.is_none() {
+            self.send_msg(&ctx, &msg, "no").await;
+            return;
+        }
+
         let (guild_id, channel_id) = {
             let guild = msg.guild(&ctx.cache).unwrap();
             let channel_id = guild
@@ -59,6 +64,11 @@ impl Handler {
     }
 
     pub async fn leave_channel(&self, ctx: &Context, msg: &Message) {
+        if msg.guild_id.is_none() {
+            self.send_msg(&ctx, &msg, "no").await;
+            return;
+        }
+
         ctx.set_activity(None);
 
         let guild_id = msg.guild_id.unwrap();

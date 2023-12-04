@@ -1,7 +1,7 @@
-mod constants;
+mod cfg;
 mod handler;
 
-use constants::*;
+use cfg::*;
 use handler::*;
 
 use rand::{thread_rng, Rng};
@@ -36,7 +36,18 @@ impl EventHandler for Handler {
             } else {
                 if msg.guild_id.is_none() {
                     println!("Adam: {}", content_og);
-                    let res = ADAM_MESSAGES[thread_rng().gen_range(0..10)];
+                    let res = [
+                        "oh hello there fake adam",
+                        "im you",
+                        "don't you see?",
+                        "i'm you but stronger",
+                        "i AM a car",
+                        "you will never be a car",
+                        "muahahaha",
+                        "no one will believe you",
+                        "adam listen",
+                        "quack",
+                    ][thread_rng().gen_range(0..10)];
                     self.send_msg(&ctx, &msg, res).await;
                 } else if msg.attachments.len() > 0 {
                     let res = "look";
@@ -51,35 +62,39 @@ impl EventHandler for Handler {
             let res = "pikchur";
             self.send_msg(&ctx, &msg, res).await;
         } else if mentioned {
-            if content.contains("you") || content.contains("u") || content.contains("can") {
+            if ["you", "u", "can"].iter().any(|&s| content.contains(s)) {
                 let res = "NO";
                 self.send_msg(&ctx, &msg, res).await;
             } else {
                 let res = "QUACK!";
                 self.send_msg(&ctx, &msg, res).await;
             }
-        } else if content.contains("join") {
-            self.join_channel(&ctx, &msg).await;
-        } else if content.contains("leave") {
-            self.leave_channel(&ctx, &msg).await;
-            let res = "fine then";
-            self.send_msg(&ctx, &msg, res).await;
         } else if content.contains("explain") {
-            msg.channel_id
-                .say(&ctx, "what do you meeeeeeean")
-                .await
-                .unwrap();
-        } else if content.contains("anime")
-            || content.contains("kimono")
-            || content.contains("japan")
+            let res = "what do you meeeeeeean";
+            self.send_msg(&ctx, &msg, res).await;
+        } else if ["anime", "japan", "kimono"]
+            .iter()
+            .any(|&s| content.contains(s))
         {
-            let res = WEEB_MESSAGES[thread_rng().gen_range(0..7)];
+            let res = [
+                "I LOVE WEEB ROBE",
+                "its ramen time",
+                "guys they do real jujutsu in jujutsu kaisen",
+                "im not watching that",
+                "oshiete yo",
+                "lads",
+                "guys, wanna go japann?",
+            ][thread_rng().gen_range(0..7)];
             self.send_msg(&ctx, &msg, res).await;
         } else if content.contains("work") {
             let res = "work chan uwu";
             self.send_msg(&ctx, &msg, res).await;
         } else if content.contains("car") {
-            let res = "guys, i am more than just a car guy";
+            let res = [
+                "guys, i am more than just a car guy",
+                "CARS",
+                "caaaars whooo",
+            ][thread_rng().gen_range(0..3)];
             self.send_msg(&ctx, &msg, res).await;
         } else if content.contains("food") {
             let res = "you can eat cars";
@@ -109,8 +124,34 @@ impl EventHandler for Handler {
             let res = "WHAT";
             self.send_msg(&ctx, &msg, res).await;
         } else if content_og.contains("fact") || content_og.contains("trivia") {
-            let rand_idx = thread_rng().gen_range(0..100);
-            let res = CAR_FACTS[rand_idx % CAR_FACTS.len()];
+            let res = [
+    "The first recorded car accident occurred in 1891 in Ohio, USA, when a steam-powered vehicle collided with a tree.",
+    "The world's fastest production car is the Bugatti Chiron Super Sport 300+, reaching a top speed of 304 mph (490 km/h).",
+    "The average car has about 30,000 parts.",
+    "The first mass-produced car was the Model T by Ford, introduced in 1908.",
+    "The Volkswagen Beetle is one of the best-selling cars in history, with over 21 million units sold.",
+    "The first car with windshield wipers was the 1903 Cadillac Model A.",
+    "The longest-lasting car model still in production is the Chevrolet Suburban, introduced in 1935.",
+    "The Lamborghini company originally manufactured tractors before venturing into sports car production.",
+    "The term \"horsepower\" was coined by James Watt, the inventor of the steam engine, to help market his invention.",
+    "The world's largest collection of classic cars can be found at the Nethercutt Collection in Sylmar, California.",
+    "The first recorded instance of a car race occurred in 1867 between two steam-powered vehicles in France.",
+    "The Rolls-Royce Phantom has self-righting wheel centers to keep the brand's logo upright when the car is moving.",
+    "The Mercedes-Benz G-Class (G-Wagon) was originally designed as a military vehicle.",
+    "The first car radio was introduced by Chevrolet in 1922.",
+    "The Porsche 911 is one of the few sports cars that has maintained its rear-engine design since its introduction in 1963.",
+    "The average car spends about 95% of its time parked.",
+    "The Toyota Corolla is the best-selling car model of all time, with over 44 million units sold.",
+    "The first hybrid car was the Toyota Prius, introduced in Japan in 1997.",
+    "The most expensive car ever sold at auction is a 1962 Ferrari 250 GTO, which fetched $48.4 million.",
+    "The iconic \"Jeep\" name comes from the phonetic pronunciation of \"G.P.,\" which stands for General Purpose or Government Purpose vehicle."
+][thread_rng().gen_range(0..20)];
+            self.send_msg(&ctx, &msg, res).await;
+        } else if content.contains("join") {
+            self.join_channel(&ctx, &msg).await;
+        } else if content.contains("leave") {
+            self.leave_channel(&ctx, &msg).await;
+            let res = "fine then";
             self.send_msg(&ctx, &msg, res).await;
         } else {
             let res = "car";
