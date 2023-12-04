@@ -1,3 +1,4 @@
+use log::{error, info};
 use serenity::gateway::ActivityData;
 use serenity::prelude::*;
 use serenity::{builder::CreateMessage, model::channel::Message};
@@ -19,21 +20,39 @@ impl Handler {
         self.history.lock().unwrap().clone()
     }
 
-    pub fn add_history(&self, msg: String) {
-        self.history.lock().unwrap().push(msg);
+    pub fn add_history(&self, msg: &str) {
+        if let Ok(mut history) = self.history.lock() {
+            history.push(msg.to_string());
+        } else {
+            error!("Failed to acquire lock for history");
+        }
     }
 
     pub fn _clear_history(&self) {
+        info!("Clearing history");
+
         self.history.lock().unwrap().clear();
     }
 
-    pub async fn send_msg(&self, ctx: &Context, msg: &Message, res: impl Into<String> + Clone) {
-        self.add_history(res.clone().into());
-        msg.channel_id.say(&ctx, res).await.unwrap();
+    pub async fn send_msg(&self, ctx: &Context, msg: &Message, res: impl AsRef<str>) {
+        let res = res.as_ref();
+
+        info!("Sending message: {}", res);
+
+        self.add_history(res);
+
+        if let Err(e) = msg.channel_id.say(&ctx, res).await {
+            error!("Failed to send message: {}", e);
+        }
     }
 
-    pub async fn send_dm(&self, ctx: &Context, msg: &Message, res: impl Into<String> + Clone) {
-        self.add_history(res.clone().into());
+    pub async fn send_dm(&self, ctx: &Context, msg: &Message, res: impl AsRef<str>) {
+        let res = res.as_ref();
+
+        info!("Sending DM: {}", res);
+
+        self.add_history(res);
+
         msg.author
             .direct_message(ctx, CreateMessage::new().content(res))
             .await
@@ -45,6 +64,8 @@ impl Handler {
             self.send_msg(&ctx, &msg, "no").await;
             return;
         }
+
+        info!("Joining voice channel");
 
         let (guild_id, channel_id) = {
             let guild = msg.guild(&ctx.cache).unwrap();
@@ -68,6 +89,8 @@ impl Handler {
             self.send_msg(&ctx, &msg, "no").await;
             return;
         }
+
+        info!("Leaving voice channel");
 
         ctx.set_activity(None);
 

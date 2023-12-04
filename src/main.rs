@@ -1,8 +1,10 @@
 mod cfg;
 mod handler;
+mod logging;
 
 use cfg::*;
-use handler::*;
+use handler::Handler;
+use logging::setup_logging;
 
 use rand::{thread_rng, Rng};
 use serenity::async_trait;
@@ -166,6 +168,8 @@ impl EventHandler for Handler {
 
 #[tokio::main]
 async fn main() {
+    setup_logging();
+
     let token = env::var("DISCORD_TOKEN").expect("'DISCORD_TOKEN' not found");
     let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
 

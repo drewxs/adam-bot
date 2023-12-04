@@ -9,3 +9,7 @@ serenity = { version = "0.12", features = ["standard_framework", "voice"] }
 songbird = { version = "0.4.0", features = ["builtin-queue"] }
 symphonia = { version = "0.5.3", features = ["aac", "mp3", "isomp4", "alac"] }
 rand = "0.8.5"
+reqwest = { version = "0.11.22", features = ["rustls-tls"] }
+fern = { version = "0.6.2", features = ["colored"] }
+chrono = "0.4.31"
+log = "0.4.20"
