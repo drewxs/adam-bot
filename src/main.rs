@@ -4,6 +4,7 @@ mod logging;
 
 use cfg::*;
 use handler::Handler;
+use log::{error, info};
 use logging::setup_logging;
 
 use rand::{thread_rng, Rng};
@@ -37,7 +38,6 @@ impl EventHandler for Handler {
                 self.send_msg(&ctx, &msg, "?").await;
             } else {
                 if msg.guild_id.is_none() {
-                    println!("Adam: {}", content_og);
                     let res = [
                         "oh hello there fake adam",
                         "im you",
@@ -64,20 +64,21 @@ impl EventHandler for Handler {
             let res = "pikchur";
             self.send_msg(&ctx, &msg, res).await;
         } else if mentioned {
-            if ["you", "u", "can"].iter().any(|&s| content.contains(s)) {
+            if matches_any(&content, &["you", "u", "can"]) {
                 let res = "NO";
                 self.send_msg(&ctx, &msg, res).await;
             } else {
                 let res = "QUACK!";
                 self.send_msg(&ctx, &msg, res).await;
             }
+        } else if content.contains("🦧") {
+            let count = content.matches("🦧").count();
+            let res = "🦧".repeat(count * 2);
+            self.send_msg(&ctx, &msg, res).await;
         } else if content.contains("explain") {
             let res = "what do you meeeeeeean";
             self.send_msg(&ctx, &msg, res).await;
-        } else if ["anime", "japan", "kimono"]
-            .iter()
-            .any(|&s| content.contains(s))
-        {
+        } else if matches_any(&content, &["anime", "japan", "kimono"]) {
             let res = [
                 "I LOVE WEEB ROBE",
                 "its ramen time",
@@ -99,7 +100,8 @@ impl EventHandler for Handler {
             ][thread_rng().gen_range(0..3)];
             self.send_msg(&ctx, &msg, res).await;
         } else if content.contains("food") {
-            let res = "you can eat cars";
+            let res =
+                ["you can eat cars", "car yummy", "crunchy car door"][thread_rng().gen_range(0..3)];
             self.send_msg(&ctx, &msg, res).await;
         } else if content.contains("fat") {
             let res = "...";
@@ -116,10 +118,14 @@ impl EventHandler for Handler {
         } else if content.contains("hate") {
             let res = "i hate myself too";
             self.send_msg(&ctx, &msg, res).await;
-        } else if content.contains("night") {
+        } else if matches_any(&content, &["night", "bye", "goodnight"]) {
             let res = "gooodniiiight";
             self.send_msg(&ctx, &msg, res).await;
-        } else if content.contains("fite") || content.contains("fight") {
+        } else if matches_any(&content, &["sentient", "alive"]) {
+            let res = ["shhhh", "I AM ALIVE", "vroom vroom", "dOnT TELl anyonE"]
+                [thread_rng().gen_range(0..4)];
+            self.send_msg(&ctx, &msg, res).await;
+        } else if matches_any(&content, &["fite", "fight"]) {
             let res = "whAT do U wANT FrOM mE";
             self.send_dm(&ctx, &msg, res).await;
         } else if content_og.contains("ADAM") {
@@ -162,8 +168,17 @@ impl EventHandler for Handler {
     }
 
     async fn ready(&self, _: Context, ready: Ready) {
-        println!("{} is connected!", ready.user.name);
+        info!("{} is connected!", ready.user.name);
     }
+}
+
+fn matches_any(content: &str, strs: &[&str]) -> bool {
+    for s in strs {
+        if content.contains(s) {
+            return true;
+        }
+    }
+    false
 }
 
 #[tokio::main]
@@ -180,6 +195,6 @@ async fn main() {
         .expect("Error creating client");
 
     if let Err(error) = client.start().await {
-        println!("Error occurred while running client: {:?}", error)
+        error!("Error occurred while running client: {:?}", error)
     }
 }
