@@ -1,17 +1,35 @@
+use crate::chat::build_openai_client;
 use log::{error, info};
 use serenity::gateway::ActivityData;
 use serenity::prelude::*;
 use serenity::{builder::CreateMessage, model::channel::Message};
 
+use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 
 pub struct Handler {
     history: Arc<Mutex<Vec<String>>>,
+    client: reqwest::Client,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ChatMessage {
+    role: String,
+    content: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ChatRequest {
+    model: String,
+    messages: Vec<ChatMessage>,
 }
 
 impl Handler {
     pub fn new() -> Self {
+        let client = build_openai_client().expect("Failed to build OpenAI client");
+
         Self {
+            client,
             history: Arc::new(Mutex::new(Vec::new())),
         }
     }
@@ -34,9 +52,39 @@ impl Handler {
         self.history.lock().unwrap().clear();
     }
 
-    pub async fn send_msg(&self, ctx: &Context, msg: &Message, res: impl AsRef<str>) {
-        let res = res.as_ref();
+    pub async fn gen_res(&self, ctx: &Context, msg: &Message) {
+        let model = std::env::var("MODEL").expect("MODEL not set");
+        let content = msg.content.as_str();
 
+        let res = self
+            .client
+            .post("https://api.openai.com/v1/chat/completions")
+            .json(&ChatRequest {
+                model,
+                messages: vec![
+                    ChatMessage {
+                    role: "system".to_string(),
+                    content: "You are a 27 year old human named 'Adam' who likes cars, anime, plays a lot of video games, and plays Ramattra in Overwatch 2.
+                    You also like to quack occasionally, and you normally have short replies.
+                    You work as a lab technician with Richard.".to_string(),
+                },
+                    ChatMessage {
+                    role: "user".to_string(),
+                    content: content.to_string(),
+                }
+                ],
+            })
+            .send()
+            .await
+            .unwrap();
+
+        let data = res.json::<serde_json::Value>().await.unwrap();
+        let text = data["choices"][0]["message"]["content"].as_str().unwrap();
+
+        self.send_msg(&ctx, &msg, text).await;
+    }
+
+    pub async fn send_msg(&self, ctx: &Context, msg: &Message, res: &str) {
         info!("Sending message: {}", res);
 
         self.add_history(res);

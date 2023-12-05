@@ -11,6 +11,8 @@ dependencies = [
  "log",
  "rand",
  "reqwest",
+ "serde",
+ "serde_json",
  "serenity",
  "songbird",
  "symphonia",
