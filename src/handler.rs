@@ -1,3 +1,4 @@
+use crate::cfg::SYS_PROMPT;
 use crate::chat::build_openai_client;
 use log::{error, info};
 use serenity::gateway::ActivityData;
@@ -52,9 +53,17 @@ impl Handler {
         self.history.lock().unwrap().clear();
     }
 
-    pub async fn gen_res(&self, ctx: &Context, msg: &Message) {
+    pub async fn gen_msg(&self, ctx: &Context, msg: &Message) {
+        self.gen_msg_select(&ctx, &msg, SYS_PROMPT).await;
+    }
+
+    pub async fn gen_adam_dm(&self, ctx: &Context, msg: &Message) {
+        let prompt = format!("{} You are currently being messaged by yourself, reply with snarky out of pocket responses.", SYS_PROMPT);
+        self.gen_msg_select(&ctx, &msg, &prompt).await;
+    }
+
+    pub async fn gen_msg_select(&self, ctx: &Context, msg: &Message, sys_prompt: &str) {
         let model = std::env::var("MODEL").expect("MODEL not set");
-        let content = msg.content.as_str();
 
         let res = self
             .client
@@ -63,15 +72,13 @@ impl Handler {
                 model,
                 messages: vec![
                     ChatMessage {
-                    role: "system".to_string(),
-                    content: "You are a 27 year old human named 'Adam' who likes cars, anime, plays a lot of video games, and plays Ramattra in Overwatch 2.
-                    You also like to quack occasionally, and you normally have short replies.
-                    You work as a lab technician with Richard.".to_string(),
-                },
+                        role: "system".to_string(),
+                        content: sys_prompt.to_string(),
+                    },
                     ChatMessage {
-                    role: "user".to_string(),
-                    content: content.to_string(),
-                }
+                        role: "user".to_string(),
+                        content: msg.content.clone(),
+                    },
                 ],
             })
             .send()

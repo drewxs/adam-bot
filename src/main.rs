@@ -28,12 +28,15 @@ impl EventHandler for Handler {
 
         let content = msg.content.as_str().to_lowercase();
         let mentioned = content.contains("adam");
+        let adam_dm = msg.author.id == ADAM_ID && msg.is_private();
 
-        if !mentioned {
+        if !mentioned && !adam_dm {
             return;
         }
 
-        if content.contains("fight") {
+        if adam_dm {
+            self.gen_adam_dm(&ctx, &msg).await;
+        } else if content.contains("fight") {
             self.send_dm(&ctx, &msg, "no").await;
         } else if content.contains("explain") {
             let res = "what do you meeeeeeean";
@@ -54,7 +57,7 @@ impl EventHandler for Handler {
             let res = "fine then";
             self.send_msg(&ctx, &msg, res).await;
         } else {
-            self.gen_res(&ctx, &msg).await;
+            self.gen_msg(&ctx, &msg).await;
         }
     }
 
