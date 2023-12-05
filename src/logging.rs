@@ -12,6 +12,8 @@ pub fn setup_logging() {
             ))
         })
         .level(log::LevelFilter::Info)
+        .level_for("tracing", log::LevelFilter::Off)
+        .level_for("serenity", log::LevelFilter::Off)
         .chain(std::io::stdout())
         .chain(fern::log_file("output.log").unwrap())
         .apply()
