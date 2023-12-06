@@ -1,3 +1,4 @@
+use crate::cfg::LOG_FILE;
 use log;
 
 pub fn setup_logging() {
@@ -16,7 +17,7 @@ pub fn setup_logging() {
         .level_for("serenity", log::LevelFilter::Off)
         .level_for("songbird", log::LevelFilter::Off)
         .chain(std::io::stdout())
-        .chain(fern::log_file("output.log").unwrap())
+        .chain(fern::log_file(LOG_FILE).unwrap())
         .apply()
         .unwrap();
 }
