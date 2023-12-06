@@ -1,3 +1,5 @@
+extern crate dotenv;
+
 mod bot;
 mod cfg;
 mod chat;
@@ -7,12 +9,13 @@ use bot::Bot;
 use cfg::{ADAM_ID, BOT_ID};
 use log::{error, info};
 use logging::setup_logging;
-
 use serenity::client::{Context, EventHandler};
 use serenity::model::channel::Message;
 use serenity::model::gateway::{GatewayIntents, Ready};
 use serenity::{async_trait, Client};
 use songbird::SerenityInit;
+use dotenv::dotenv;
+use std::env;
 
 #[async_trait]
 impl EventHandler for Bot {
@@ -66,9 +69,13 @@ impl EventHandler for Bot {
 
 #[tokio::main]
 async fn main() {
+    if cfg!(debug_assertions) {
+        dotenv().ok();
+    }
+
     setup_logging();
 
-    let token = std::env::var("DISCORD_TOKEN").expect("'DISCORD_TOKEN' not found");
+    let token = env::var("DISCORD_TOKEN").expect("'DISCORD_TOKEN' not found");
     let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
 
     let mut client = Client::builder(token, intents)
