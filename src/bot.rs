@@ -8,9 +8,17 @@ use serenity::model::channel::Message;
 use serenity::prelude::*;
 use std::sync::{Arc, Mutex};
 
+#[derive(Debug, Clone)]
+pub struct SavedMessage {
+    pub author: String,
+    pub content: String,
+}
+
+pub type History = Vec<SavedMessage>;
+
 #[derive(Debug)]
 pub struct Bot {
-    history: Arc<Mutex<Vec<String>>>,
+    history: Arc<Mutex<History>>,
     client: reqwest::Client,
     model: String,
 }
@@ -41,13 +49,16 @@ impl Bot {
         }
     }
 
-    pub fn _get_history(&self) -> Vec<String> {
+    pub fn _get_history(&self) -> History {
         self.history.lock().unwrap().clone()
     }
 
-    pub fn add_history(&self, msg: &str) {
+    pub fn add_history(&self, author_id: &str, msg: &str) {
         if let Ok(mut history) = self.history.lock() {
-            history.push(msg.to_string());
+            history.push(SavedMessage {
+                author: author_id.to_string(),
+                content: msg.to_string(),
+            });
         } else {
             error!("Failed to acquire lock for history");
         }
@@ -57,6 +68,19 @@ impl Bot {
         info!("Clearing history");
 
         self.history.lock().unwrap().clear();
+    }
+
+    pub fn get_last_2_msgs(&self) -> Option<(SavedMessage, SavedMessage)> {
+        if let Ok(history) = self.history.lock() {
+            if history.len() > 1 {
+                return Some((
+                    history[history.len() - 1].clone(),
+                    history[history.len() - 2].clone(),
+                ));
+            }
+        }
+
+        None
     }
 
     pub async fn gen_msg(&self, ctx: &Context, msg: &Message) {
@@ -121,11 +145,11 @@ impl Bot {
         let recv = format!("{}: {}", msg.author.name, msg.content);
         let send = format!("{}: {}", "bot", res);
 
-        self.add_history(&recv);
-        self.add_history(&send);
-
         info!("{recv}");
         info!("{send}");
+
+        self.add_history(&msg.author.name, &recv);
+        self.add_history("bot", &send);
     }
 
     pub async fn send_msg(&self, ctx: &Context, msg: &Message, res: &str) {

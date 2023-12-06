@@ -27,10 +27,18 @@ impl EventHandler for Bot {
         }
 
         let content = msg.content.as_str().to_lowercase();
+        let last = self.get_last_2_msgs();
+
         let mentioned = content.contains("adam");
         let dm = msg.is_private();
+        let reply = if let Some(last) = last {
+            last.0.author == "adam" && last.1.author == "adam"
+        } else {
+            false
+        };
 
-        if !mentioned && !dm {
+        if !mentioned && !dm && !reply {
+            self.add_history(&msg.author.name, &msg.content);
             return;
         }
 
