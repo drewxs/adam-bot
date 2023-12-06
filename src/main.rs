@@ -28,14 +28,16 @@ impl EventHandler for Handler {
 
         let content = msg.content.as_str().to_lowercase();
         let mentioned = content.contains("adam");
-        let adam_dm = msg.author.id == ADAM_ID && msg.is_private();
+        let dm = msg.is_private();
 
-        if !mentioned && !adam_dm {
+        if !mentioned && !dm {
             return;
         }
 
-        if adam_dm {
+        if msg.author.id == ADAM_ID && dm {
             self.gen_adam_dm(&ctx, &msg).await;
+        } else if dm {
+            self.gen_dm(&ctx, &msg).await;
         } else if content.contains("fight") {
             self.send_dm(&ctx, &msg, "no").await;
         } else if content.contains("explain") {

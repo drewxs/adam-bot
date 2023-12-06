@@ -54,15 +54,31 @@ impl Handler {
     }
 
     pub async fn gen_msg(&self, ctx: &Context, msg: &Message) {
-        self.gen_msg_select(&ctx, &msg, SYS_PROMPT).await;
+        let text = self.gen_text(&msg, SYS_PROMPT).await;
+
+        if let Some(text) = text {
+            self.send_msg(&ctx, &msg, &text).await;
+        }
+    }
+
+    pub async fn gen_dm(&self, ctx: &Context, msg: &Message) {
+        let text = self.gen_text(&msg, SYS_PROMPT).await;
+
+        if let Some(text) = text {
+            self.send_dm(&ctx, &msg, &text).await;
+        }
     }
 
     pub async fn gen_adam_dm(&self, ctx: &Context, msg: &Message) {
         let prompt = format!("{} You are currently being messaged by yourself, reply with snarky out of pocket responses.", SYS_PROMPT);
-        self.gen_msg_select(&ctx, &msg, &prompt).await;
+        let text = self.gen_text(&msg, &prompt).await;
+
+        if let Some(text) = text {
+            self.send_msg(&ctx, &msg, &text).await;
+        }
     }
 
-    pub async fn gen_msg_select(&self, ctx: &Context, msg: &Message, sys_prompt: &str) {
+    pub async fn gen_text(&self, msg: &Message, sys_prompt: &str) -> Option<String> {
         let model = std::env::var("MODEL").expect("MODEL not set");
 
         let res = self
@@ -82,36 +98,43 @@ impl Handler {
                 ],
             })
             .send()
-            .await
-            .unwrap();
+            .await;
 
-        let data = res.json::<serde_json::Value>().await.unwrap();
-        let text = data["choices"][0]["message"]["content"].as_str().unwrap();
+        if let Ok(res) = res {
+            let data = res.json::<serde_json::Value>().await.unwrap();
+            let text = data["choices"][0]["message"]["content"].as_str().unwrap();
+            Some(text.to_string())
+        } else {
+            None
+        }
+    }
 
-        self.send_msg(&ctx, &msg, text).await;
+    pub async fn handle_msg(&self, msg: &Message, res: &str) {
+        let recv = format!("{}: {}", msg.author.name, msg.content);
+        let send = format!("{}: {}", "bot", res);
+
+        self.add_history(&recv);
+        self.add_history(&send);
+
+        info!("{recv}");
+        info!("{send}");
     }
 
     pub async fn send_msg(&self, ctx: &Context, msg: &Message, res: &str) {
-        info!("Sending message: {}", res);
-
-        self.add_history(res);
+        self.handle_msg(&msg, &res).await;
 
         if let Err(e) = msg.channel_id.say(&ctx, res).await {
             error!("Failed to send message: {}", e);
         }
     }
 
-    pub async fn send_dm(&self, ctx: &Context, msg: &Message, res: impl AsRef<str>) {
-        let res = res.as_ref();
+    pub async fn send_dm(&self, ctx: &Context, msg: &Message, res: &str) {
+        self.handle_msg(&msg, &res).await;
 
-        info!("Sending DM: {}", res);
-
-        self.add_history(res);
-
-        msg.author
-            .direct_message(ctx, CreateMessage::new().content(res))
-            .await
-            .unwrap();
+        let content = CreateMessage::new().content(res);
+        if let Err(e) = msg.author.direct_message(ctx, content).await {
+            error!("Failed to send DM: {}", e);
+        }
     }
 
     pub async fn join_channel(&self, ctx: &Context, msg: &Message) {
