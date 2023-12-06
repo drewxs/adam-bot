@@ -1,21 +1,21 @@
+mod bot;
 mod cfg;
 mod chat;
-mod handler;
 mod logging;
 
-use cfg::*;
-use handler::Handler;
+use bot::Bot;
+use cfg::{ADAM_ID, BOT_ID};
 use log::{error, info};
 use logging::setup_logging;
 
-use serenity::async_trait;
+use serenity::client::{Context, EventHandler};
 use serenity::model::channel::Message;
-use serenity::model::gateway::Ready;
-use serenity::prelude::*;
+use serenity::model::gateway::{GatewayIntents, Ready};
+use serenity::{async_trait, Client};
 use songbird::SerenityInit;
 
 #[async_trait]
-impl EventHandler for Handler {
+impl EventHandler for Bot {
     async fn message(&self, ctx: Context, msg: Message) {
         if msg.author.id == BOT_ID {
             return;
@@ -34,24 +34,12 @@ impl EventHandler for Handler {
             return;
         }
 
-        if msg.author.id == ADAM_ID && dm {
-            self.gen_adam_dm(&ctx, &msg).await;
-        } else if dm {
-            self.gen_dm(&ctx, &msg).await;
-        } else if content.contains("fight") {
-            self.send_dm(&ctx, &msg, "no").await;
-        } else if content.contains("explain") {
-            let res = "what do you meeeeeeean";
-            self.send_msg(&ctx, &msg, res).await;
-        } else if content.contains("thank") {
-            let res = "your WELcome";
-            self.send_msg(&ctx, &msg, res).await;
-        } else if content.contains("hate") {
-            let res = "i hate myself too";
-            self.send_msg(&ctx, &msg, res).await;
-        } else if matches_any(&content, &["night", "bye", "goodnight"]) {
-            let res = "gooodniiiight";
-            self.send_msg(&ctx, &msg, res).await;
+        if dm {
+            if msg.author.id == ADAM_ID {
+                self.gen_adam_dm(&ctx, &msg).await;
+            } else {
+                self.gen_msg(&ctx, &msg).await;
+            }
         } else if content.contains("join") {
             self.join_channel(&ctx, &msg).await;
         } else if content.contains("leave") {
@@ -68,15 +56,6 @@ impl EventHandler for Handler {
     }
 }
 
-fn matches_any(content: &str, strs: &[&str]) -> bool {
-    for s in strs {
-        if content.contains(s) {
-            return true;
-        }
-    }
-    false
-}
-
 #[tokio::main]
 async fn main() {
     setup_logging();
@@ -85,7 +64,7 @@ async fn main() {
     let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
 
     let mut client = Client::builder(token, intents)
-        .event_handler(Handler::new())
+        .event_handler(Bot::new())
         .register_songbird()
         .await
         .expect("Error creating client");

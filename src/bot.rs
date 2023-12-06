@@ -1,16 +1,18 @@
 use crate::cfg::SYS_PROMPT;
 use crate::chat::build_openai_client;
 use log::{error, info};
-use serenity::gateway::ActivityData;
-use serenity::prelude::*;
-use serenity::{builder::CreateMessage, model::channel::Message};
-
 use serde::{Deserialize, Serialize};
+use serenity::builder::CreateMessage;
+use serenity::gateway::ActivityData;
+use serenity::model::channel::Message;
+use serenity::prelude::*;
 use std::sync::{Arc, Mutex};
 
-pub struct Handler {
+#[derive(Debug)]
+pub struct Bot {
     history: Arc<Mutex<Vec<String>>>,
     client: reqwest::Client,
+    model: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -25,13 +27,17 @@ struct ChatRequest {
     messages: Vec<ChatMessage>,
 }
 
-impl Handler {
+impl Bot {
     pub fn new() -> Self {
-        let client = build_openai_client().expect("Failed to build OpenAI client");
+        let openai_api_key = std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
+        let model = std::env::var("MODEL").expect("MODEL not set");
+
+        let client = build_openai_client(openai_api_key).expect("Failed to build OpenAI client");
 
         Self {
-            client,
             history: Arc::new(Mutex::new(Vec::new())),
+            client,
+            model,
         }
     }
 
@@ -54,38 +60,28 @@ impl Handler {
     }
 
     pub async fn gen_msg(&self, ctx: &Context, msg: &Message) {
-        let text = self.gen_text(&msg, SYS_PROMPT).await;
+        let text = self.gen_with_prompt(&msg, SYS_PROMPT).await;
 
         if let Some(text) = text {
             self.send_msg(&ctx, &msg, &text).await;
-        }
-    }
-
-    pub async fn gen_dm(&self, ctx: &Context, msg: &Message) {
-        let text = self.gen_text(&msg, SYS_PROMPT).await;
-
-        if let Some(text) = text {
-            self.send_dm(&ctx, &msg, &text).await;
         }
     }
 
     pub async fn gen_adam_dm(&self, ctx: &Context, msg: &Message) {
         let prompt = format!("{} You are currently being messaged by yourself, reply with snarky out of pocket responses.", SYS_PROMPT);
-        let text = self.gen_text(&msg, &prompt).await;
+        let text = self.gen_with_prompt(&msg, &prompt).await;
 
         if let Some(text) = text {
             self.send_msg(&ctx, &msg, &text).await;
         }
     }
 
-    pub async fn gen_text(&self, msg: &Message, sys_prompt: &str) -> Option<String> {
-        let model = std::env::var("MODEL").expect("MODEL not set");
-
+    pub async fn gen_with_prompt(&self, msg: &Message, sys_prompt: &str) -> Option<String> {
         let res = self
             .client
             .post("https://api.openai.com/v1/chat/completions")
             .json(&ChatRequest {
-                model,
+                model: self.model.clone(),
                 messages: vec![
                     ChatMessage {
                         role: "system".to_string(),
@@ -101,9 +97,21 @@ impl Handler {
             .await;
 
         if let Ok(res) = res {
-            let data = res.json::<serde_json::Value>().await.unwrap();
-            let text = data["choices"][0]["message"]["content"].as_str().unwrap();
-            Some(text.to_string())
+            let data = res.json::<serde_json::Value>().await;
+            if let Err(e) = data {
+                error!("Failed to parse response: {}", e);
+                return None;
+            }
+            let data = data.unwrap();
+            let text = data["choices"][0]["message"]["content"].as_str();
+
+            return match text {
+                Some(text) => Some(text.to_string()),
+                None => {
+                    error!("Failed to extract text from response: {:?}", data);
+                    None
+                }
+            };
         } else {
             None
         }
@@ -128,11 +136,14 @@ impl Handler {
         }
     }
 
-    pub async fn send_dm(&self, ctx: &Context, msg: &Message, res: &str) {
+    pub async fn _send_dm(&self, ctx: &Context, msg: &Message, res: &str) {
         self.handle_msg(&msg, &res).await;
 
-        let content = CreateMessage::new().content(res);
-        if let Err(e) = msg.author.direct_message(ctx, content).await {
+        if let Err(e) = msg
+            .author
+            .direct_message(ctx, CreateMessage::new().content(res))
+            .await
+        {
             error!("Failed to send DM: {}", e);
         }
     }
@@ -142,8 +153,6 @@ impl Handler {
             self.send_msg(&ctx, &msg, "no").await;
             return;
         }
-
-        info!("Joining voice channel");
 
         let (guild_id, channel_id) = {
             let guild = msg.guild(&ctx.cache).unwrap();
@@ -155,6 +164,8 @@ impl Handler {
         };
 
         if let Some(channel_id) = channel_id {
+            info!("Joining voice channel");
+
             ctx.set_activity(Some(ActivityData::listening("richard's music")));
 
             let manager = songbird::get(&ctx).await.unwrap().clone();
@@ -168,14 +179,14 @@ impl Handler {
             return;
         }
 
-        info!("Leaving voice channel");
-
         ctx.set_activity(None);
 
         let guild_id = msg.guild_id.unwrap();
         let manager = songbird::get(&ctx).await.unwrap().clone();
 
         if manager.get(guild_id).is_some() {
+            info!("Leaving voice channel");
+
             manager.remove(guild_id).await.unwrap();
         }
     }
