@@ -1,6 +1,7 @@
 use crate::cfg::SYS_PROMPT;
 use crate::chat::build_openai_client;
 use log::{error, info};
+use reqwest::Error;
 use serde::{Deserialize, Serialize};
 use serenity::builder::CreateMessage;
 use serenity::gateway::ActivityData;
@@ -87,7 +88,7 @@ impl Bot {
     pub async fn gen_msg(&self, ctx: &Context, msg: &Message) {
         let text = self.gen_with_prompt(&msg, SYS_PROMPT).await;
 
-        if let Some(text) = text {
+        if let Ok(text) = text {
             self.send_msg(&ctx, &msg, &text).await;
         }
     }
@@ -96,12 +97,12 @@ impl Bot {
         let prompt = format!("{} You are currently being messaged by yourself, reply with snarky out of pocket responses.", SYS_PROMPT);
         let text = self.gen_with_prompt(&msg, &prompt).await;
 
-        if let Some(text) = text {
+        if let Ok(text) = text {
             self.send_msg(&ctx, &msg, &text).await;
         }
     }
 
-    pub async fn gen_with_prompt(&self, msg: &Message, sys_prompt: &str) -> Option<String> {
+    pub async fn gen_with_prompt(&self, msg: &Message, sys_prompt: &str) -> Result<String, Error> {
         let res = self
             .client
             .post("https://api.openai.com/v1/chat/completions")
@@ -119,27 +120,12 @@ impl Bot {
                 ],
             })
             .send()
-            .await;
+            .await?;
 
-        if let Ok(res) = res {
-            let data = res.json::<serde_json::Value>().await;
-            if let Err(e) = data {
-                error!("Failed to parse response: {}", e);
-                return None;
-            }
-            let data = data.unwrap();
-            let text = data["choices"][0]["message"]["content"].as_str();
+        let data = res.json::<serde_json::Value>().await?;
+        let text = data["choices"][0]["message"]["content"].to_string();
 
-            return match text {
-                Some(text) => Some(text.to_string()),
-                None => {
-                    error!("Failed to extract text from response: {:?}", data);
-                    None
-                }
-            };
-        } else {
-            None
-        }
+        Ok(text)
     }
 
     pub async fn handle_msg(&self, msg: &Message, res: &str) {
