@@ -6,9 +6,11 @@ Discord bot based on a friend.
 
 #### Requirements
 
-- `rust` or `docker`
+- `rust` or `docker`, `docker-compose`
 
-Create `.env` from `.env.example`, tweak `src/cfg.rs`, then run `cargo run`.
+Create `.env` from `.env.example`, tweak `src/cfg.rs`.
+
+Then either run `cargo run` or `docker-compose up`.
 
 ### Fine-tuning
 

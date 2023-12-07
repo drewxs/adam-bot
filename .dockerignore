@@ -1,0 +1,9 @@
+.git
+model
+target/
+.env*
+docker-compose.yml
+Dockerfile
+LICENSE
+*.log
+*.md
