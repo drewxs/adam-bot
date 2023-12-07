@@ -143,14 +143,11 @@ impl Bot {
     }
 
     pub async fn handle_msg(&self, msg: &Message, res: &str) {
-        let recv = format!("{}: {}", msg.author.name, msg.content);
-        let send = format!("{}: {}", "bot", res);
+        info!("{}: {}", msg.author.name, msg.content);
+        info!("{}: {}", "bot", res);
 
-        info!("{recv}");
-        info!("{send}");
-
-        self.add_history(&msg.author.name, &recv);
-        self.add_history("bot", &send);
+        self.add_history(&msg.author.name, &msg.content);
+        self.add_history("bot", &res);
     }
 
     pub async fn send_msg(&self, ctx: &Context, msg: &Message, res: &str) {
