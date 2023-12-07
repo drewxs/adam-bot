@@ -1,12 +1,12 @@
 use crate::cfg::SYS_PROMPT;
 use crate::chat::build_openai_client;
-use std::env;
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use serenity::builder::CreateMessage;
 use serenity::gateway::ActivityData;
 use serenity::model::channel::Message;
 use serenity::prelude::*;
+use std::env;
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone)]
@@ -75,8 +75,8 @@ impl Bot {
         if let Ok(history) = self.history.lock() {
             if history.len() > 1 {
                 return Some((
-                    history[history.len() - 1].clone(),
                     history[history.len() - 2].clone(),
+                    history[history.len() - 1].clone(),
                 ));
             }
         }

@@ -7,6 +7,7 @@ mod logging;
 
 use bot::Bot;
 use cfg::{ADAM_ID, BOT_ID};
+use dotenv::dotenv;
 use log::{error, info};
 use logging::setup_logging;
 use serenity::client::{Context, EventHandler};
@@ -14,7 +15,6 @@ use serenity::model::channel::Message;
 use serenity::model::gateway::{GatewayIntents, Ready};
 use serenity::{async_trait, Client};
 use songbird::SerenityInit;
-use dotenv::dotenv;
 use std::env;
 
 #[async_trait]
@@ -30,12 +30,11 @@ impl EventHandler for Bot {
         }
 
         let content = msg.content.as_str().to_lowercase();
-        let last = self.get_last_2_msgs();
 
         let mentioned = content.contains("adam");
         let dm = msg.is_private();
-        let reply = if let Some(last) = last {
-            last.0.author == "adam" && last.1.author == "adam"
+        let reply = if let Some(last) = self.get_last_2_msgs() {
+            last.0.author == msg.author.name && last.1.author == "bot"
         } else {
             false
         };
