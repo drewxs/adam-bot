@@ -180,7 +180,7 @@ impl Bot {
             ctx.set_activity(Some(ActivityData::listening("richard's music")));
 
             let manager = songbird::get(&ctx).await.unwrap().clone();
-            manager.join(guild_id, channel_id).await.unwrap();
+            let _ = manager.join(guild_id, channel_id).await;
         }
     }
 
@@ -198,7 +198,7 @@ impl Bot {
         if manager.get(guild_id).is_some() {
             info!("Leaving voice channel");
 
-            manager.remove(guild_id).await.unwrap();
+            let _ = manager.remove(guild_id).await;
         }
     }
 }

@@ -3,19 +3,29 @@ extern crate dotenv;
 mod bot;
 mod cfg;
 mod chat;
+mod commands;
 mod logging;
+mod typemaps;
 
 use bot::Bot;
 use cfg::{ADAM_ID, BOT_ID};
+use commands::*;
 use dotenv::dotenv;
 use log::{error, info};
 use logging::setup_logging;
-use serenity::client::{Context, EventHandler};
+use reqwest::Client as HttpClient;
+use serenity::async_trait;
+use serenity::framework::standard::macros::group;
+use serenity::framework::standard::{Configuration, StandardFramework};
+use serenity::http::Http;
 use serenity::model::channel::Message;
-use serenity::model::gateway::{GatewayIntents, Ready};
-use serenity::{async_trait, Client};
+use serenity::model::event::ResumedEvent;
+use serenity::model::gateway::Ready;
+use serenity::prelude::*;
 use songbird::SerenityInit;
+use std::collections::HashSet;
 use std::env;
+use typemaps::{HttpKey, ShardManagerContainer};
 
 #[async_trait]
 impl EventHandler for Bot {
@@ -63,7 +73,15 @@ impl EventHandler for Bot {
     async fn ready(&self, _: Context, ready: Ready) {
         info!("{} is connected!", ready.user.name);
     }
+
+    async fn resume(&self, _: Context, _: ResumedEvent) {
+        info!("Resumed");
+    }
 }
+
+#[group]
+#[commands(play, queue, skip, stop, play_fade)]
+struct General;
 
 #[tokio::main]
 async fn main() {
@@ -75,14 +93,45 @@ async fn main() {
 
     let token = env::var("DISCORD_TOKEN").expect("'DISCORD_TOKEN' not found");
     let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
+    let http = Http::new(&token);
+
+    let (owners, _bot_id) = match http.get_current_application_info().await {
+        Ok(info) => {
+            let mut owners = HashSet::new();
+            if let Some(owner) = &info.owner {
+                owners.insert(owner.id);
+            }
+
+            (owners, info.id)
+        }
+        Err(error) => panic!("Could not access application info: {:?}", error),
+    };
+
+    let framework = StandardFramework::new().group(&GENERAL_GROUP);
+    framework.configure(Configuration::new().owners(owners).prefix("~"));
 
     let mut client = Client::builder(token, intents)
         .event_handler(Bot::new())
+        .framework(framework)
         .register_songbird()
+        .type_map_insert::<HttpKey>(HttpClient::new())
         .await
         .expect("Error creating client");
 
+    {
+        let mut data = client.data.write().await;
+        data.insert::<ShardManagerContainer>(client.shard_manager.clone());
+    }
+
+    let shard_manager = client.shard_manager.clone();
+    tokio::spawn(async move {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Could not register ctrl+c handler");
+        shard_manager.shutdown_all().await;
+    });
+
     if let Err(error) = client.start().await {
-        error!("Error occurred while running client: {:?}", error)
+        error!("Client error: {:?}", error)
     }
 }
