@@ -54,8 +54,7 @@ impl EventHandler for Bot {
             self.join_channel(&ctx, &msg).await;
         } else if content.contains("leave") {
             self.leave_channel(&ctx, &msg).await;
-            let res = "fine then";
-            self.send_msg(&ctx, &msg, res).await;
+            self.send_msg(&ctx, &msg, "fine then").await;
         } else {
             self.gen_msg(&ctx, &msg).await;
         }

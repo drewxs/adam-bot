@@ -123,7 +123,10 @@ impl Bot {
             .await?;
 
         let data = res.json::<serde_json::Value>().await?;
-        let text = data["choices"][0]["message"]["content"].to_string();
+        let text = data["choices"][0]["message"]["content"]
+            .as_str()
+            .unwrap_or("idk")
+            .to_string();
 
         Ok(text)
     }
