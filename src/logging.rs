@@ -1,4 +1,5 @@
 use crate::cfg::LOG_FILE;
+
 use log;
 
 pub fn setup_logging() {

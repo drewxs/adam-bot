@@ -2,17 +2,14 @@ extern crate dotenv;
 
 mod bot;
 mod cfg;
-mod chat;
-mod commands;
+mod history;
 mod logging;
-mod typemaps;
+mod message;
+mod music;
+mod openai;
+mod state;
+mod voice;
 
-use bot::Bot;
-use cfg::{ADAM_ID, BOT_ID};
-use commands::*;
-use dotenv::dotenv;
-use log::{error, info};
-use logging::setup_logging;
 use reqwest::Client as HttpClient;
 use serenity::async_trait;
 use serenity::framework::standard::macros::group;
@@ -25,7 +22,14 @@ use serenity::prelude::*;
 use songbird::SerenityInit;
 use std::collections::HashSet;
 use std::env;
-use typemaps::{HttpKey, ShardManagerContainer};
+
+use bot::Bot;
+use cfg::{ADAM_ID, BOT_ID};
+use dotenv::dotenv;
+use log::{error, info};
+use logging::setup_logging;
+use music::*;
+use state::{HttpKey, ShardManagerContainer};
 
 #[async_trait]
 impl EventHandler for Bot {
@@ -34,8 +38,7 @@ impl EventHandler for Bot {
             return;
         }
 
-        let mentioned = msg.mentions_me(&ctx.http).await.unwrap_or(false);
-        if mentioned {
+        if msg.mentions_me(&ctx.http).await.unwrap_or(false) {
             self.send_msg(&ctx, &msg, "?").await;
         }
 
@@ -63,8 +66,8 @@ impl EventHandler for Bot {
         } else if content.contains("join") {
             self.join_channel(&ctx, &msg).await;
         } else if content.contains("leave") {
-            self.leave_channel(&ctx, &msg).await;
             self.send_msg(&ctx, &msg, "fine then").await;
+            self.leave_channel(&ctx, &msg).await;
         } else {
             self.gen_msg(&ctx, &msg).await;
         }
@@ -80,7 +83,7 @@ impl EventHandler for Bot {
 }
 
 #[group]
-#[commands(play, queue, skip, stop, play_fade)]
+#[commands(play, play_fade, queue, skip, stop)]
 struct General;
 
 #[tokio::main]

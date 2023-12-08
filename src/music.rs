@@ -1,4 +1,3 @@
-use crate::typemaps::HttpKey;
 use log::{error, info};
 use reqwest::Client as HttpClient;
 use serenity::async_trait;
@@ -9,6 +8,8 @@ use serenity::model::channel::Message;
 use songbird::input::YoutubeDl;
 use songbird::{Event, EventContext, EventHandler as VoiceEventHandler, TrackEvent};
 use std::time::Duration;
+
+use crate::state::HttpKey;
 
 struct SongFader {}
 
@@ -41,14 +42,11 @@ impl VoiceEventHandler for SongEndNotifier {
 
 #[command]
 #[only_in(guilds)]
-async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    info!("Command: play");
-
+pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let url = args.single::<String>()?;
 
     if !url.starts_with("http") {
         error!("Invalid URL: {}", url);
-
         return Ok(());
     }
 
@@ -66,13 +64,15 @@ async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     if let Some(handler_lock) = manager.get(guild_id) {
         let mut handler = handler_lock.lock().await;
 
+        info!("Attempting to play: {}", url);
+
         let src = YoutubeDl::new(http_client, url);
 
-        let _ = handler.play_input(src.into());
+        let _ = handler.play_input(src.into()).set_volume(0.5);
 
         info!("Playing song");
     } else {
-        error!("Not in a voice channel to play in");
+        error!("Not in a voice channel");
     }
 
     Ok(())
@@ -80,14 +80,11 @@ async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 
 #[command]
 #[only_in(guilds)]
-pub async fn queue(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    info!("Command: queue");
-
+pub async fn play_fade(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
     let url = args.single::<String>()?;
 
     if !url.starts_with("http") {
         error!("Invalid URL: {}", url);
-
         return Ok(());
     }
 
@@ -99,6 +96,46 @@ pub async fn queue(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
 
     if let Some(handler_lock) = manager.get(guild_id) {
         let mut handler = handler_lock.lock().await;
+
+        let src = YoutubeDl::new(http_client, url);
+        let song = handler.play_input(src.into());
+
+        // Periodically make a track quieter until it can be no longer heard.
+        let _ = song.add_event(
+            Event::Periodic(Duration::from_secs(5), Some(Duration::from_secs(7))),
+            SongFader {},
+        );
+
+        // Fire an event once an audio track completes,
+        // either due to hitting the end of the bytestream or stopped by user code.
+        let _ = song.add_event(Event::Track(TrackEvent::End), SongEndNotifier {});
+    } else {
+        error!("Not in a voice channel");
+    }
+
+    Ok(())
+}
+
+#[command]
+#[only_in(guilds)]
+pub async fn queue(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
+    let url = args.single::<String>()?;
+
+    if !url.starts_with("http") {
+        error!("Invalid URL: {}", url);
+        return Ok(());
+    }
+
+    let guild_id = msg.guild_id.unwrap();
+
+    let http_client = get_http_client(ctx).await;
+
+    let manager = songbird::get(ctx).await.unwrap().clone();
+
+    if let Some(handler_lock) = manager.get(guild_id) {
+        let mut handler = handler_lock.lock().await;
+
+        info!("Queueing {}", url);
 
         // Use lazy restartable sources to make sure that we don't pay
         // for decoding, playback on tracks which aren't actually live yet.
@@ -123,7 +160,7 @@ pub async fn queue(ctx: &Context, msg: &Message, mut args: Args) -> CommandResul
 #[command]
 #[only_in(guilds)]
 pub async fn skip(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    info!("Command: skip");
+    info!("Music: skip");
 
     let guild_id = msg.guild_id.unwrap();
 
@@ -149,59 +186,19 @@ pub async fn skip(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
 #[command]
 #[only_in(guilds)]
 pub async fn stop(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
-    info!("Command: stop");
-
     let guild_id = msg.guild_id.unwrap();
 
     let manager = songbird::get(ctx).await.unwrap().clone();
 
     if let Some(handler_lock) = manager.get(guild_id) {
+        info!("Stopping");
+
         let handler = handler_lock.lock().await;
         let queue = handler.queue();
+
         queue.stop();
 
         let _ = msg.channel_id.say(&ctx.http, "Queue cleared.").await;
-    } else {
-        error!("Not in a voice channel");
-    }
-
-    Ok(())
-}
-
-#[command]
-#[only_in(guilds)]
-pub async fn play_fade(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let url = args.single::<String>()?;
-
-    if !url.starts_with("http") {
-        error!("Invalid URL: {}", url);
-
-        return Ok(());
-    }
-
-    let guild_id = msg.guild_id.unwrap();
-
-    let http_client = get_http_client(ctx).await;
-
-    let manager = songbird::get(ctx).await.unwrap().clone();
-
-    if let Some(handler_lock) = manager.get(guild_id) {
-        info!("Playing song: {}", url);
-
-        let mut handler = handler_lock.lock().await;
-
-        let src = YoutubeDl::new(http_client, url);
-        let song = handler.play_input(src.into());
-
-        // Periodically make a track quieter until it can be no longer heard.
-        let _ = song.add_event(
-            Event::Periodic(Duration::from_secs(5), Some(Duration::from_secs(7))),
-            SongFader {},
-        );
-
-        // Fire an event once an audio track completes,
-        // either due to hitting the end of the bytestream or stopped by user code.
-        let _ = song.add_event(Event::Track(TrackEvent::End), SongEndNotifier {});
     } else {
         error!("Not in a voice channel");
     }
