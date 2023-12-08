@@ -1,16 +1,17 @@
 FROM rust:1.74 as builder
 
-WORKDIR /usr/src
-RUN apt-get update && apt-get upgrade -y \
-  && apt-get install -y cmake ca-certificates libssl-dev
+RUN apt-get update && apt-get install -y cmake 
 
-WORKDIR /usr/src/bot
+WORKDIR /bot
 COPY . .
 RUN cargo build --release
 
+
 FROM debian:sid-slim
 
-WORKDIR /usr/src/bot
-COPY --from=builder /usr/src/bot/target/release/adam .
+RUN apt-get update && apt-get install -y ca-certificates
+
+WORKDIR /bot
+COPY --from=builder /bot/target/release/adam .
 
 CMD ["./adam"]
