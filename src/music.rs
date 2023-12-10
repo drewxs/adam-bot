@@ -1,5 +1,6 @@
 use log::{error, info};
 use reqwest::Client as HttpClient;
+use reqwest::Error;
 use serenity::async_trait;
 use serenity::client::Context;
 use serenity::framework::standard::macros::command;
@@ -7,6 +8,7 @@ use serenity::framework::standard::{Args, CommandResult};
 use serenity::model::channel::Message;
 use songbird::input::YoutubeDl;
 use songbird::{Event, EventContext, EventHandler as VoiceEventHandler, TrackEvent};
+use std::env;
 use std::time::Duration;
 
 use crate::state::HttpKey;
@@ -42,35 +44,22 @@ impl VoiceEventHandler for SongEndNotifier {
 
 #[command]
 #[only_in(guilds)]
-pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let url = args.single::<String>()?;
+pub async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let search = args.message();
 
-    if !url.starts_with("http") {
-        error!("Invalid URL: {}", url);
-        return Ok(());
-    }
+    info!("Seaching for {}", search);
 
     let guild_id = msg.guild_id.unwrap();
-
-    let http_client = {
-        let data = ctx.data.read().await;
-        data.get::<HttpKey>()
-            .cloned()
-            .expect("Http client not found")
-    };
-
     let manager = songbird::get(ctx).await.unwrap().clone();
 
     if let Some(handler_lock) = manager.get(guild_id) {
         let mut handler = handler_lock.lock().await;
 
-        info!("Attempting to play: {}", url);
+        let (youtube_dl, url) = find_song(&ctx, search).await?;
 
-        let src = YoutubeDl::new(http_client, url);
+        let _ = handler.play_input(youtube_dl.into()).set_volume(0.5);
 
-        let _ = handler.play_input(src.into()).set_volume(0.5);
-
-        info!("Playing song");
+        info!("Playing {}", url);
     } else {
         error!("Not in a voice channel");
     }
@@ -80,25 +69,22 @@ pub async fn play(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult
 
 #[command]
 #[only_in(guilds)]
-pub async fn play_fade(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let url = args.single::<String>()?;
+pub async fn play_fade(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let search = args.message();
 
-    if !url.starts_with("http") {
-        error!("Invalid URL: {}", url);
-        return Ok(());
-    }
+    info!("Seaching for {}", search);
 
     let guild_id = msg.guild_id.unwrap();
-
-    let http_client = get_http_client(ctx).await;
-
     let manager = songbird::get(ctx).await.unwrap().clone();
 
     if let Some(handler_lock) = manager.get(guild_id) {
         let mut handler = handler_lock.lock().await;
 
-        let src = YoutubeDl::new(http_client, url);
-        let song = handler.play_input(src.into());
+        let (youtube_dl, url) = find_song(&ctx, search).await?;
+
+        let song = handler.play_input(youtube_dl.into());
+
+        info!("Playing {}", url);
 
         // Periodically make a track quieter until it can be no longer heard.
         let _ = song.add_event(
@@ -118,30 +104,25 @@ pub async fn play_fade(ctx: &Context, msg: &Message, mut args: Args) -> CommandR
 
 #[command]
 #[only_in(guilds)]
-pub async fn queue(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
-    let url = args.single::<String>()?;
+pub async fn queue(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let search = args.message();
 
-    if !url.starts_with("http") {
-        error!("Invalid URL: {}", url);
-        return Ok(());
-    }
+    info!("Seaching for {}", search);
 
     let guild_id = msg.guild_id.unwrap();
-
-    let http_client = get_http_client(ctx).await;
 
     let manager = songbird::get(ctx).await.unwrap().clone();
 
     if let Some(handler_lock) = manager.get(guild_id) {
         let mut handler = handler_lock.lock().await;
 
+        let (youtube_dl, url) = find_song(&ctx, search).await?;
+
         info!("Queueing {}", url);
 
         // Use lazy restartable sources to make sure that we don't pay
         // for decoding, playback on tracks which aren't actually live yet.
-        let src = YoutubeDl::new(http_client, url);
-
-        handler.enqueue_input(src.into()).await;
+        handler.enqueue_input(youtube_dl.into()).await;
 
         let _ = msg
             .channel_id
@@ -211,4 +192,33 @@ async fn get_http_client(ctx: &Context) -> HttpClient {
     data.get::<HttpKey>()
         .cloned()
         .expect("Http client not found")
+}
+
+async fn find_song(ctx: &Context, search: &str) -> Result<(YoutubeDl, String), Error> {
+    let client = get_http_client(ctx).await;
+
+    let yt_api_key = env::var("YOUTUBE_API_KEY").expect("YOUTUBE_API_KEY not set");
+
+    let search_results = client
+        .get("https://www.googleapis.com/youtube/v3/search")
+        .query(&[
+            ("key", yt_api_key.as_str()),
+            ("type", "video"),
+            ("maxResults", "1"),
+            ("videoDuration", "short"),
+            ("q", search),
+        ])
+        .send()
+        .await?;
+    let search_results = search_results.json::<serde_json::Value>().await?;
+
+    let video_id = search_results["items"][0]["id"]["videoId"]
+        .as_str()
+        .expect("No video found")
+        .to_string();
+
+    let url = format!("https://www.youtube.com/watch?v={}", video_id);
+    let youtube_dl = YoutubeDl::new(client, url.clone());
+
+    Ok((youtube_dl, url))
 }

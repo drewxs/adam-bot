@@ -113,11 +113,13 @@ async fn main() {
     let framework = StandardFramework::new().group(&GENERAL_GROUP);
     framework.configure(Configuration::new().owners(owners).prefix("~"));
 
+    let yt_client = HttpClient::new();
+
     let mut client = Client::builder(token, intents)
         .event_handler(Bot::new())
         .framework(framework)
         .register_songbird()
-        .type_map_insert::<HttpKey>(HttpClient::new())
+        .type_map_insert::<HttpKey>(yt_client)
         .await
         .expect("Error creating client");
 
