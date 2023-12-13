@@ -10,6 +10,11 @@ mod openai;
 mod state;
 mod voice;
 
+use std::collections::HashSet;
+use std::env;
+
+use dotenv::dotenv;
+use log::{error, info};
 use reqwest::Client as HttpClient;
 use serenity::async_trait;
 use serenity::framework::standard::macros::group;
@@ -20,16 +25,12 @@ use serenity::model::event::ResumedEvent;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
 use songbird::SerenityInit;
-use std::collections::HashSet;
-use std::env;
 
-use bot::Bot;
-use cfg::{ADAM_ID, BOT_ID};
-use dotenv::dotenv;
-use log::{error, info};
-use logging::setup_logging;
-use music::*;
-use state::{HttpKey, ShardManagerContainer};
+use crate::bot::Bot;
+use crate::cfg::{ADAM_ID, BOT_ID};
+use crate::logging::setup_logging;
+use crate::music::*;
+use crate::state::{HttpKey, ShardManagerContainer};
 
 #[async_trait]
 impl EventHandler for Bot {

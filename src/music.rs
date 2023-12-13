@@ -1,3 +1,6 @@
+use std::env;
+use std::time::Duration;
+
 use log::{error, info};
 use reqwest::Client as HttpClient;
 use reqwest::Error;
@@ -8,8 +11,6 @@ use serenity::framework::standard::{Args, CommandResult};
 use serenity::model::channel::Message;
 use songbird::input::YoutubeDl;
 use songbird::{Event, EventContext, EventHandler as VoiceEventHandler, TrackEvent};
-use std::env;
-use std::time::Duration;
 
 use crate::state::HttpKey;
 

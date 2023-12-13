@@ -1,7 +1,8 @@
+use std::sync::Arc;
+
 use reqwest::Client as HttpClient;
 use serenity::gateway::ShardManager;
 use songbird::typemap::TypeMapKey;
-use std::sync::Arc;
 
 pub struct HttpKey;
 

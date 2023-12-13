@@ -1,6 +1,6 @@
-use crate::cfg::LOG_FILE;
-
 use log;
+
+use crate::cfg::LOG_FILE;
 
 pub fn setup_logging() {
     fern::Dispatch::new()
