@@ -30,24 +30,38 @@ impl Bot {
     }
 
     pub async fn gen_with_prompt(&self, msg: &Message, sys_prompt: &str) -> Result<String, Error> {
+        let sys_prompt = format!(
+            "{}\nConversation history:\n{}",
+            sys_prompt,
+            self.get_history_text(10)
+        );
+        let new_msg = format!("New message:\n{}: {}", &msg.author.name, &msg.content);
+
         let res = self
             .client
             .post(format!("{OPENAI_API_URL}/chat/completions"))
             .json(&ChatRequest {
                 model: self.model.clone(),
                 messages: vec![
-                    ChatMessage::new("system", sys_prompt),
-                    ChatMessage::new("user", &msg.content),
+                    ChatMessage::new("system", &sys_prompt),
+                    ChatMessage::new("user", &new_msg),
                 ],
             })
             .send()
             .await?;
 
         let data = res.json::<serde_json::Value>().await?;
-        let text = data["choices"][0]["message"]["content"]
+        let mut text = data["choices"][0]["message"]["content"]
             .as_str()
             .unwrap_or("idk")
             .to_string();
+
+        if text.contains(":") {
+            let split = text.split(": ").collect::<Vec<&str>>();
+            if split.len() > 1 {
+                text = split[1].to_string();
+            }
+        }
 
         Ok(text)
     }

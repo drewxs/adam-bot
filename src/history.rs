@@ -44,4 +44,18 @@ impl Bot {
 
         None
     }
+
+    pub fn get_history_text(&self, n: usize) -> String {
+        let mut msg = String::new();
+
+        if let Ok(history) = self.history.lock() {
+            let mut i = 0;
+            while i < n && i < history.len() {
+                msg.push_str(&format!("{}: {}\n", history[i].author, history[i].content));
+                i += 1;
+            }
+        }
+
+        msg
+    }
 }
