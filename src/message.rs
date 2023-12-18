@@ -68,10 +68,10 @@ impl Bot {
 
     pub async fn handle_msg(&self, msg: &Message, res: &str) {
         info!("{}: {}", msg.author.name, msg.content);
-        info!("{}: {}", "bot", res);
+        info!("{}: {}", "adam", res);
 
         self.add_history(&msg.author.name, &msg.content);
-        self.add_history("bot", &res);
+        self.add_history("adam", &res);
     }
 
     pub async fn send_msg(&self, ctx: &Context, msg: &Message, res: &str) {

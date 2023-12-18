@@ -48,7 +48,7 @@ impl EventHandler for Bot {
         let mentioned = content.contains("adam");
         let dm = msg.is_private();
         let reply = if let Some(last) = self.get_last_2_msgs() {
-            last.0.author == msg.author.name && last.1.author == "bot"
+            last.0.author == msg.author.name && last.1.author == "adam"
         } else {
             false
         };
