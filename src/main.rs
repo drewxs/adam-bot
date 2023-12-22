@@ -8,6 +8,7 @@ mod message;
 mod music;
 mod openai;
 mod state;
+mod utils;
 mod voice;
 
 use std::collections::HashSet;
@@ -31,12 +32,34 @@ use crate::cfg::{ADAM_ID, BOT_ID};
 use crate::logging::setup_logging;
 use crate::music::*;
 use crate::state::{HttpKey, ShardManagerContainer};
+use crate::utils::current_time_seconds;
 
 #[async_trait]
 impl EventHandler for Bot {
     async fn message(&self, ctx: Context, msg: Message) {
         if msg.author.id == BOT_ID {
             return;
+        }
+
+        if let Ok(mut user_limits) = self.user_limits.lock() {
+            if let Some((last_time, count)) = user_limits.get(&msg.author.id.into()) {
+                let current_time = current_time_seconds();
+                if current_time - last_time < 60 && *count >= 6 {
+                    info!("Exceeded rate limit: {}", msg.author.name);
+                    return;
+                }
+            }
+
+            let user_info = user_limits.entry(msg.author.id.into()).or_insert((0, 0));
+
+            let current_time = current_time_seconds();
+
+            if current_time - user_info.0 >= 60 {
+                user_info.0 = current_time;
+                user_info.1 = 0;
+            }
+
+            user_info.1 += 1;
         }
 
         if msg.mentions_me(&ctx.http).await.unwrap_or(false) {

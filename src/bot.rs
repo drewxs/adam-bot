@@ -1,14 +1,16 @@
+use std::collections::HashMap;
 use std::env;
 use std::sync::{Arc, Mutex};
 
 use crate::history::History;
 use crate::openai::build_openai_client;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Bot {
     pub history: Arc<Mutex<History>>,
     pub client: reqwest::Client,
     pub model: String,
+    pub user_limits: Arc<Mutex<HashMap<u64, (u64, u64)>>>,
 }
 
 impl Bot {
@@ -22,6 +24,7 @@ impl Bot {
             history: Arc::new(Mutex::new(Vec::new())),
             client,
             model,
+            user_limits: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
