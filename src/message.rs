@@ -35,7 +35,7 @@ impl Bot {
             sys_prompt,
             self.get_history_text(10)
         );
-        let new_msg = format!("New message:\n{}: {}", &msg.author.name, &msg.content);
+        let new_msg = format!("{}: {}", &msg.author.name, &msg.content);
 
         let res = self
             .client
