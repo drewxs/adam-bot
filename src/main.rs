@@ -44,7 +44,7 @@ impl EventHandler for Bot {
         if let Ok(mut user_limits) = self.user_limits.lock() {
             if let Some((last_time, count)) = user_limits.get(&msg.author.id.into()) {
                 let current_time = current_time_seconds();
-                if current_time - last_time < 60 && *count >= 6 {
+                if current_time - last_time < 60 && *count >= 10 {
                     info!("Exceeded rate limit: {}", msg.author.name);
                     return;
                 }
