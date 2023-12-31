@@ -50,16 +50,15 @@ impl EventHandler for Bot {
                 }
             }
 
-            let user_info = user_limits.entry(msg.author.id.into()).or_insert((0, 0));
-
+            let (&timestamp, &count) = user_limits.entry(msg.author.id.into()).or_insert((0, 0));
             let current_time = current_time_seconds();
 
-            if current_time - user_info.0 >= 60 {
-                user_info.0 = current_time;
-                user_info.1 = 0;
+            if current_time - timestamp >= 60 {
+                timestamp = current_time;
+                count = 0;
             }
 
-            user_info.1 += 1;
+            count += 1;
         }
 
         if msg.mentions_me(&ctx.http).await.unwrap_or(false) {
