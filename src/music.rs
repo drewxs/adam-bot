@@ -10,14 +10,14 @@ use serenity::framework::standard::macros::command;
 use serenity::framework::standard::{Args, CommandResult};
 use serenity::model::channel::Message;
 use songbird::input::YoutubeDl;
-use songbird::{Event, EventContext, EventHandler as VoiceEventHandler, TrackEvent};
+use songbird::{Event, EventContext, EventHandler, TrackEvent};
 
 use crate::state::HttpKey;
 
 struct SongFader {}
 
 #[async_trait]
-impl VoiceEventHandler for SongFader {
+impl EventHandler for SongFader {
     async fn act(&self, ctx: &EventContext<'_>) -> Option<Event> {
         if let EventContext::Track(&[(state, track)]) = ctx {
             let _ = track.set_volume(state.volume / 2.0);
@@ -37,7 +37,7 @@ impl VoiceEventHandler for SongFader {
 struct SongEndNotifier {}
 
 #[async_trait]
-impl VoiceEventHandler for SongEndNotifier {
+impl EventHandler for SongEndNotifier {
     async fn act(&self, _ctx: &EventContext<'_>) -> Option<Event> {
         None
     }

@@ -25,10 +25,22 @@ pub struct ChatRequest {
     pub messages: Vec<ChatMessage>,
 }
 
-pub fn build_openai_client(api_key: String) -> Result<Client, Error> {
+pub fn build_chat_client(api_key: String) -> Result<Client, Error> {
     let mut headers = HeaderMap::new();
 
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    headers.insert(AUTHORIZATION, format!("Bearer {api_key}").parse().unwrap());
+
+    Client::builder().default_headers(headers).build()
+}
+
+pub fn build_whisper_client(api_key: String) -> Result<Client, Error> {
+    let mut headers = HeaderMap::new();
+
+    headers.insert(
+        CONTENT_TYPE,
+        HeaderValue::from_static("multipart/form-data"),
+    );
     headers.insert(AUTHORIZATION, format!("Bearer {api_key}").parse().unwrap());
 
     Client::builder().default_headers(headers).build()

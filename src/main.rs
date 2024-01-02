@@ -25,6 +25,7 @@ use serenity::model::channel::Message;
 use serenity::model::event::ResumedEvent;
 use serenity::model::gateway::Ready;
 use serenity::prelude::*;
+use songbird::driver::DecodeMode;
 use songbird::SerenityInit;
 
 use crate::bot::Bot;
@@ -50,15 +51,15 @@ impl EventHandler for Bot {
                 }
             }
 
-            let (&timestamp, &count) = user_limits.entry(msg.author.id.into()).or_insert((0, 0));
+            let (timestamp, count) = user_limits.entry(msg.author.id.into()).or_insert((0, 0));
             let current_time = current_time_seconds();
 
-            if current_time - timestamp >= 60 {
-                timestamp = current_time;
-                count = 0;
+            if current_time - *timestamp >= 60 {
+                *timestamp = current_time;
+                *count = 0;
             }
 
-            count += 1;
+            *count += 1;
         }
 
         if msg.mentions_me(&ctx.http).await.unwrap_or(false) {
@@ -118,7 +119,9 @@ async fn main() {
     setup_logging();
 
     let token = env::var("DISCORD_TOKEN").expect("'DISCORD_TOKEN' not found");
-    let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
+    let intents = GatewayIntents::non_privileged()
+        | GatewayIntents::MESSAGE_CONTENT
+        | GatewayIntents::GUILD_VOICE_STATES;
     let http = Http::new(&token);
 
     let (owners, _bot_id) = match http.get_current_application_info().await {
@@ -137,11 +140,12 @@ async fn main() {
     framework.configure(Configuration::new().owners(owners).prefix("~"));
 
     let yt_client = HttpClient::new();
+    let songbird_cfg = songbird::Config::default().decode_mode(DecodeMode::Decode);
 
     let mut client = Client::builder(token, intents)
         .event_handler(Bot::new())
         .framework(framework)
-        .register_songbird()
+        .register_songbird_from_config(songbird_cfg)
         .type_map_insert::<HttpKey>(yt_client)
         .await
         .expect("Error creating client");

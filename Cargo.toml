@@ -16,7 +16,14 @@ tokio = { version = "1.21.2", features = [
   "signal",
 ] }
 serenity = { version = "0.12", features = ["standard_framework", "voice"] }
-songbird = { version = "0.4.0", features = ["builtin-queue"] }
+songbird = { version = "0.4.0", features = [
+  "builtin-queue",
+  "serenity",
+  "receive",
+] }
 symphonia = { version = "0.5.3", features = ["aac", "mp3", "isomp4", "alac"] }
 reqwest = { version = "0.11.22", features = ["rustls-tls", "json"] }
 fern = { version = "0.6.2", features = ["colored"] }
+dashmap = "5.5.3"
+hound = "3.5.1"
+anyhow = "1.0.79"
