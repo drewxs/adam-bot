@@ -25,7 +25,7 @@ pub struct ChatRequest {
     pub messages: Vec<ChatMessage>,
 }
 
-pub fn build_chat_client(api_key: String) -> Result<Client, Error> {
+pub fn build_chat_client(api_key: &str) -> Result<Client, Error> {
     let mut headers = HeaderMap::new();
 
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -34,7 +34,7 @@ pub fn build_chat_client(api_key: String) -> Result<Client, Error> {
     Client::builder().default_headers(headers).build()
 }
 
-pub fn build_whisper_client(api_key: String) -> Result<Client, Error> {
+pub fn build_audio_client(api_key: &str) -> Result<Client, Error> {
     let mut headers = HeaderMap::new();
 
     headers.insert(

@@ -17,11 +17,16 @@ use songbird::model::payload::{ClientDisconnect, Speaking};
 use songbird::{CoreEvent, Event, EventContext as Ctx, EventHandler};
 
 use crate::bot::Bot;
-use crate::openai::{build_whisper_client, OPENAI_API_URL};
+use crate::cfg::SYS_PROMPT;
+use crate::openai::{
+    build_audio_client, build_chat_client, ChatMessage, ChatRequest, OPENAI_API_URL,
+};
 
 #[derive(Clone)]
 struct Receiver {
-    client: reqwest::Client,
+    chat_model: String,
+    chat_client: reqwest::Client,
+    whisper_client: reqwest::Client,
     controller: Arc<VoiceController>,
 }
 
@@ -41,10 +46,14 @@ struct Slice {
 impl Receiver {
     pub fn new() -> Self {
         let openai_api_key = env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
-        let client = build_whisper_client(openai_api_key).unwrap();
+        let chat_model = env::var("MODEL").expect("MODEL not set");
+        let chat_client = build_chat_client(&openai_api_key).unwrap();
+        let whisper_client = build_audio_client(&openai_api_key).unwrap();
 
         Self {
-            client,
+            chat_model,
+            chat_client,
+            whisper_client,
             controller: Arc::new(VoiceController {
                 last_tick_was_empty: AtomicBool::default(),
                 known_ssrcs: DashMap::new(),
@@ -52,16 +61,18 @@ impl Receiver {
             }),
         }
     }
-}
 
-impl Receiver {
     async fn transcribe_slice(&self, slice: &mut Slice) {
         let filename = format!("cache/{}_{}.wav", slice.user_id, Utc::now().timestamp());
 
         self.save(&slice.bytes, &filename);
         slice.bytes.clear();
 
-        let _ = self.transcribe(&filename).await;
+        if let Ok(text) = self.transcribe(&filename).await {
+            if let Ok(res) = self.gen_response(&text).await {
+                info!("Response: {:?}", res);
+            }
+        }
     }
 
     fn save(&self, pcm_samples: &[i16], filename: &str) {
@@ -95,7 +106,7 @@ impl Receiver {
             .part("model", Part::text("whisper-1"));
 
         let res = self
-            .client
+            .whisper_client
             .post(format!("{OPENAI_API_URL}/audio/transcriptions"))
             .multipart(form)
             .send()
@@ -110,6 +121,30 @@ impl Receiver {
         fs::remove_file(filename)?;
 
         Err(Error::msg("no text"))
+    }
+
+    async fn gen_response(&self, text: &str) -> Result<String, Error> {
+        let data = self
+            .chat_client
+            .post(format!("{OPENAI_API_URL}/chat/completions"))
+            .json(&ChatRequest {
+                model: self.chat_model.clone(),
+                messages: vec![
+                    ChatMessage::new("system", &SYS_PROMPT),
+                    ChatMessage::new("user", &text),
+                ],
+            })
+            .send()
+            .await?
+            .json::<serde_json::Value>()
+            .await?;
+
+        let res = data["choices"][0]["message"]["content"]
+            .as_str()
+            .unwrap_or("idk")
+            .to_string();
+
+        Ok(res)
     }
 }
 
