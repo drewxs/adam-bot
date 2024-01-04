@@ -58,7 +58,7 @@ pub async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
         let (youtube_dl, url) = find_song(&ctx, search).await?;
 
-        let _ = handler.play_input(youtube_dl.into()).set_volume(0.5);
+        handler.play_input(youtube_dl.into());
 
         info!("Playing {}", url);
     } else {
