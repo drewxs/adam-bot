@@ -14,19 +14,20 @@ use serenity::gateway::ActivityData;
 use serenity::model::channel::Message;
 use songbird::model::id::UserId;
 use songbird::model::payload::{ClientDisconnect, Speaking};
-use songbird::{CoreEvent, Event, EventContext as Ctx, EventHandler};
+use songbird::{CoreEvent, Driver, Event, EventContext as Ctx, EventHandler};
 
 use crate::bot::Bot;
 use crate::cfg::SYS_PROMPT;
 use crate::openai::{
-    build_audio_client, build_chat_client, ChatMessage, ChatRequest, OPENAI_API_URL,
+    build_json_client, build_multipart_client, ChatMessage, ChatRequest, SpeechRequest,
+    OPENAI_API_URL,
 };
 
 #[derive(Clone)]
 struct Receiver {
     chat_model: String,
-    chat_client: reqwest::Client,
-    whisper_client: reqwest::Client,
+    json_client: reqwest::Client,
+    multipart_client: reqwest::Client,
     controller: Arc<VoiceController>,
 }
 
@@ -47,13 +48,13 @@ impl Receiver {
     pub fn new() -> Self {
         let openai_api_key = env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
         let chat_model = env::var("MODEL").expect("MODEL not set");
-        let chat_client = build_chat_client(&openai_api_key).unwrap();
-        let whisper_client = build_audio_client(&openai_api_key).unwrap();
+        let chat_client = build_json_client(&openai_api_key).unwrap();
+        let whisper_client = build_multipart_client(&openai_api_key).unwrap();
 
         Self {
             chat_model,
-            chat_client,
-            whisper_client,
+            json_client: chat_client,
+            multipart_client: whisper_client,
             controller: Arc::new(VoiceController {
                 last_tick_was_empty: AtomicBool::default(),
                 known_ssrcs: DashMap::new(),
@@ -62,17 +63,17 @@ impl Receiver {
         }
     }
 
-    async fn transcribe_slice(&self, slice: &mut Slice) {
+    async fn process(&self, slice: &mut Slice) -> Result<(), Error> {
         let filename = format!("cache/{}_{}.wav", slice.user_id, Utc::now().timestamp());
 
         self.save(&slice.bytes, &filename);
         slice.bytes.clear();
 
-        if let Ok(text) = self.transcribe(&filename).await {
-            if let Ok(res) = self.gen_response(&text).await {
-                info!("Response: {:?}", res);
-            }
-        }
+        let text = self.transcribe(&filename).await?;
+        let res = self.gen_response(&text).await?;
+        self.gen_audio(&res).await?;
+
+        Ok(())
     }
 
     fn save(&self, pcm_samples: &[i16], filename: &str) {
@@ -99,14 +100,14 @@ impl Receiver {
             .part(
                 "file",
                 Part::bytes(file)
-                    .file_name(filename.to_owned())
+                    .file_name(filename.to_string())
                     .mime_str("audio/wav")
                     .unwrap(),
             )
             .part("model", Part::text("whisper-1"));
 
         let res = self
-            .whisper_client
+            .multipart_client
             .post(format!("{OPENAI_API_URL}/audio/transcriptions"))
             .multipart(form)
             .send()
@@ -120,12 +121,12 @@ impl Receiver {
 
         fs::remove_file(filename)?;
 
-        Err(Error::msg("no text"))
+        Err(Error::msg("Failed to transcribe audio"))
     }
 
     async fn gen_response(&self, text: &str) -> Result<String, Error> {
         let data = self
-            .chat_client
+            .json_client
             .post(format!("{OPENAI_API_URL}/chat/completions"))
             .json(&ChatRequest {
                 model: self.chat_model.clone(),
@@ -144,7 +145,33 @@ impl Receiver {
             .unwrap_or("idk")
             .to_string();
 
+        info!("Response: {:?}", res);
+
         Ok(res)
+    }
+
+    async fn gen_audio(&self, text: &str) -> Result<(), Error> {
+        let res = self
+            .json_client
+            .post(format!("{OPENAI_API_URL}/audio/speech"))
+            .json(&SpeechRequest {
+                model: "tts-1".to_string(),
+                input: text.to_string(),
+                voice: "onyx".to_string(),
+            })
+            .send()
+            .await?;
+
+        if res.status().is_success() {
+            let body = res.bytes().await?;
+
+            let mut driver = Driver::new(Default::default());
+            driver.play_input(body.into());
+
+            return Ok(());
+        }
+
+        Err(Error::msg("Failed to generate audio"))
     }
 }
 
@@ -192,7 +219,9 @@ impl EventHandler for Receiver {
                             continue;
                         }
 
-                        self.transcribe_slice(&mut slice).await;
+                        if let Err(e) = self.process(&mut slice).await {
+                            info!("Processing error: {:?}", e);
+                        }
                     }
                 } else if speaking != 0 {
                     self.controller

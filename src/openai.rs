@@ -25,7 +25,14 @@ pub struct ChatRequest {
     pub messages: Vec<ChatMessage>,
 }
 
-pub fn build_chat_client(api_key: &str) -> Result<Client, Error> {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SpeechRequest {
+    pub model: String,
+    pub input: String,
+    pub voice: String,
+}
+
+pub fn build_json_client(api_key: &str) -> Result<Client, Error> {
     let mut headers = HeaderMap::new();
 
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
@@ -34,7 +41,7 @@ pub fn build_chat_client(api_key: &str) -> Result<Client, Error> {
     Client::builder().default_headers(headers).build()
 }
 
-pub fn build_audio_client(api_key: &str) -> Result<Client, Error> {
+pub fn build_multipart_client(api_key: &str) -> Result<Client, Error> {
     let mut headers = HeaderMap::new();
 
     headers.insert(
