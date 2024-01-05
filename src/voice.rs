@@ -245,12 +245,16 @@ impl EventHandler for Receiver {
                                     slice.bytes.append(&mut bytes);
                                 }
                                 None => {
-                                    let slice = Slice {
-                                        user_id: self.controller.known_ssrcs.get(&ssrc).unwrap().0,
-                                        bytes,
-                                        timestamp: Utc::now(),
-                                    };
-                                    self.controller.accumulator.insert(*ssrc, slice);
+                                    if let Some(user_id) = self.controller.known_ssrcs.get(ssrc) {
+                                        self.controller.accumulator.insert(
+                                            *ssrc,
+                                            Slice {
+                                                user_id: user_id.0,
+                                                bytes,
+                                                timestamp: Utc::now(),
+                                            },
+                                        );
+                                    }
                                 }
                             }
                         } else {
