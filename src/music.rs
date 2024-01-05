@@ -175,9 +175,10 @@ pub async fn stop(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
     if let Some(handler_lock) = manager.get(guild_id) {
         info!("Stopping");
 
-        let handler = handler_lock.lock().await;
-        let queue = handler.queue();
+        let mut handler = handler_lock.lock().await;
+        handler.stop();
 
+        let queue = handler.queue();
         queue.stop();
 
         let _ = msg.channel_id.say(&ctx.http, "Queue cleared.").await;
