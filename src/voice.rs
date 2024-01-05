@@ -8,13 +8,16 @@ use dashmap::DashMap;
 use hound::{SampleFormat, WavSpec, WavWriter};
 use log::info;
 use reqwest::multipart::{Form, Part};
+use serenity::all::GuildId;
 use serenity::async_trait;
 use serenity::client::Context;
 use serenity::gateway::ActivityData;
 use serenity::model::channel::Message;
+use songbird::input::codecs::{CODEC_REGISTRY, PROBE};
+use songbird::input::Input;
 use songbird::model::id::UserId;
 use songbird::model::payload::{ClientDisconnect, Speaking};
-use songbird::{CoreEvent, Driver, Event, EventContext as Ctx, EventHandler};
+use songbird::{CoreEvent, Event, EventContext as Ctx, EventHandler};
 
 use crate::bot::Bot;
 use crate::cfg::SYS_PROMPT;
@@ -25,6 +28,8 @@ use crate::openai::{
 
 #[derive(Clone)]
 struct Receiver {
+    ctx: Context,
+    guild_id: GuildId,
     chat_model: String,
     json_client: reqwest::Client,
     multipart_client: reqwest::Client,
@@ -45,16 +50,18 @@ struct Slice {
 }
 
 impl Receiver {
-    pub fn new() -> Self {
+    pub fn new(ctx: Context, guild_id: GuildId) -> Self {
         let openai_api_key = env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
         let chat_model = env::var("MODEL").expect("MODEL not set");
-        let chat_client = build_json_client(&openai_api_key).unwrap();
-        let whisper_client = build_multipart_client(&openai_api_key).unwrap();
+        let json_client = build_json_client(&openai_api_key).unwrap();
+        let multipart_client = build_multipart_client(&openai_api_key).unwrap();
 
         Self {
+            ctx,
+            guild_id,
             chat_model,
-            json_client: chat_client,
-            multipart_client: whisper_client,
+            json_client,
+            multipart_client,
             controller: Arc::new(VoiceController {
                 last_tick_was_empty: AtomicBool::default(),
                 known_ssrcs: DashMap::new(),
@@ -162,16 +169,25 @@ impl Receiver {
             .send()
             .await?;
 
-        if res.status().is_success() {
-            let body = res.bytes().await?;
-
-            let mut driver = Driver::new(Default::default());
-            driver.play_input(body.into());
-
-            return Ok(());
+        if !res.status().is_success() {
+            return Err(Error::msg("Failed to generate audio"));
         }
 
-        Err(Error::msg("Failed to generate audio"))
+        let mut bytes: Input = res.bytes().await?.into();
+        bytes = bytes.make_playable_async(&CODEC_REGISTRY, &PROBE).await?;
+
+        if !bytes.is_playable() {
+            return Err(Error::msg("Generated audio is not playable"));
+        }
+
+        let manager = songbird::get(&self.ctx).await.unwrap();
+
+        if let Some(handler_lock) = manager.get(self.guild_id.clone()) {
+            let mut handler = handler_lock.lock().await;
+            handler.play_input(bytes);
+        }
+
+        Ok(())
     }
 }
 
@@ -189,19 +205,11 @@ impl EventHandler for Receiver {
                     info!("{:?}: Speaking", ssrc);
                     self.controller.known_ssrcs.insert(*ssrc, *user);
 
-                    match self.controller.accumulator.get(ssrc) {
-                        Some(_) => {}
-                        None => {
-                            self.controller.accumulator.insert(
-                                *ssrc,
-                                Slice {
-                                    user_id: user.0,
-                                    bytes: Vec::new(),
-                                    timestamp: Utc::now(),
-                                },
-                            );
-                        }
-                    }
+                    self.controller.accumulator.entry(*ssrc).or_insert(Slice {
+                        user_id: user.0,
+                        bytes: Vec::new(),
+                        timestamp: Utc::now(),
+                    });
                 }
             }
             Ctx::VoiceTick(tick) => {
@@ -289,13 +297,13 @@ impl Bot {
             if let Ok(handler_lock) = manager.join(guild_id, channel_id).await {
                 let mut handler = handler_lock.lock().await;
 
-                let receiver = Receiver::new();
+                let receiver = Receiver::new(ctx.to_owned(), guild_id.into());
 
                 handler.add_global_event(CoreEvent::SpeakingStateUpdate.into(), receiver.clone());
+                handler.add_global_event(CoreEvent::VoiceTick.into(), receiver.clone());
                 handler.add_global_event(CoreEvent::RtpPacket.into(), receiver.clone());
                 handler.add_global_event(CoreEvent::RtcpPacket.into(), receiver.clone());
-                handler.add_global_event(CoreEvent::ClientDisconnect.into(), receiver.clone());
-                handler.add_global_event(CoreEvent::VoiceTick.into(), receiver);
+                handler.add_global_event(CoreEvent::ClientDisconnect.into(), receiver);
             }
         }
     }
