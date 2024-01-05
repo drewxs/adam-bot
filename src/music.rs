@@ -48,7 +48,7 @@ impl EventHandler for SongEndNotifier {
 pub async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let search = args.message();
 
-    info!("Seaching for {}", search);
+    info!("Searching for {}", search);
 
     let guild_id = msg.guild_id.unwrap();
     let manager = songbird::get(ctx).await.unwrap().clone();
@@ -58,7 +58,7 @@ pub async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
         let (youtube_dl, url) = find_song(&ctx, search).await?;
 
-        handler.play_input(youtube_dl.into());
+        let _ = handler.play_input(youtube_dl.into()).set_volume(0.03);
 
         info!("Playing {}", url);
     } else {
@@ -73,7 +73,7 @@ pub async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 pub async fn play_fade(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let search = args.message();
 
-    info!("Seaching for {}", search);
+    info!("Searching for {}", search);
 
     let guild_id = msg.guild_id.unwrap();
     let manager = songbird::get(ctx).await.unwrap().clone();
@@ -108,7 +108,7 @@ pub async fn play_fade(ctx: &Context, msg: &Message, args: Args) -> CommandResul
 pub async fn queue(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     let search = args.message();
 
-    info!("Seaching for {}", search);
+    info!("Searching for {}", search);
 
     let guild_id = msg.guild_id.unwrap();
 
