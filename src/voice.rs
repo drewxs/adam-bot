@@ -1,9 +1,9 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::{env, fs};
 
 use anyhow::Error;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use dashmap::DashMap;
 use hound::{SampleFormat, WavSpec, WavWriter};
 use log::info;
@@ -36,10 +36,16 @@ struct Receiver {
     controller: Arc<VoiceController>,
 }
 
+struct VoiceReply {
+    timestamp: DateTime<Utc>,
+    duration: Duration,
+}
+
 struct VoiceController {
     last_tick_was_empty: AtomicBool,
     known_ssrcs: DashMap<u32, UserId>,
     accumulator: DashMap<u32, Slice>,
+    last_reply: Mutex<Option<VoiceReply>>,
 }
 
 struct Slice {
@@ -66,14 +72,30 @@ impl Receiver {
                 last_tick_was_empty: AtomicBool::default(),
                 known_ssrcs: DashMap::new(),
                 accumulator: DashMap::new(),
+                last_reply: Mutex::new(None),
             }),
         }
     }
 
     async fn process(&self, slice: &mut Slice) -> Result<(), Error> {
+        if let Ok(mut last_reply) = self.controller.last_reply.lock() {
+            if let Some(reply) = last_reply.take() {
+                let elapsed = Utc::now() - reply.timestamp;
+                let remaining = reply.duration - elapsed;
+
+                if remaining > Duration::milliseconds(0) {
+                    slice.timestamp = Utc::now();
+                    slice.bytes.clear();
+
+                    return Ok(());
+                }
+            }
+        }
+
         let filename = format!("cache/{}_{}.wav", slice.user_id, Utc::now().timestamp());
 
         self.save(&slice.bytes, &filename);
+        slice.timestamp = Utc::now();
         slice.bytes.clear();
 
         let text = self.transcribe(&filename).await?;
@@ -173,10 +195,14 @@ impl Receiver {
             return Err(Error::msg("Failed to generate audio"));
         }
 
-        let mut bytes: Input = res.bytes().await?.into();
-        bytes = bytes.make_playable_async(&CODEC_REGISTRY, &PROBE).await?;
+        let bytes = res.bytes().await?;
 
-        if !bytes.is_playable() {
+        let mut input: Input = bytes.clone().into();
+        input = input.make_playable_async(&CODEC_REGISTRY, &PROBE).await?;
+
+        let duration = (bytes.len() / 48) as u64;
+
+        if !input.is_playable() {
             return Err(Error::msg("Generated audio is not playable"));
         }
 
@@ -184,7 +210,14 @@ impl Receiver {
 
         if let Some(handler_lock) = manager.get(self.guild_id.clone()) {
             let mut handler = handler_lock.lock().await;
-            handler.play_input(bytes);
+            handler.play_input(input);
+
+            if let Ok(mut last_reply) = self.controller.last_reply.lock() {
+                *last_reply = Some(VoiceReply {
+                    timestamp: Utc::now(),
+                    duration: Duration::milliseconds(duration as i64),
+                });
+            }
         }
 
         Ok(())
@@ -203,6 +236,7 @@ impl EventHandler for Receiver {
             }) => {
                 if let Some(user) = user_id {
                     info!("{:?}: Speaking", ssrc);
+
                     self.controller.known_ssrcs.insert(*ssrc, *user);
 
                     self.controller.accumulator.entry(*ssrc).or_insert(Slice {
