@@ -43,6 +43,7 @@ struct VoiceReply {
 
 struct VoiceController {
     last_tick_was_empty: AtomicBool,
+    active: AtomicBool,
     known_ssrcs: DashMap<u32, UserId>,
     accumulator: DashMap<u32, Slice>,
     last_reply: Mutex<Option<VoiceReply>>,
@@ -51,7 +52,6 @@ struct VoiceController {
 struct Slice {
     user_id: u64,
     bytes: Vec<i16>,
-    #[allow(dead_code)]
     timestamp: DateTime<Utc>,
 }
 
@@ -69,6 +69,7 @@ impl Receiver {
             json_client,
             multipart_client,
             controller: Arc::new(VoiceController {
+                active: AtomicBool::new(false),
                 last_tick_was_empty: AtomicBool::default(),
                 known_ssrcs: DashMap::new(),
                 accumulator: DashMap::new(),
@@ -99,6 +100,14 @@ impl Receiver {
         slice.bytes.clear();
 
         let text = self.transcribe(&filename).await?;
+
+        if !self.controller.active.load(Ordering::SeqCst) {
+            slice.timestamp = Utc::now();
+            slice.bytes.clear();
+
+            return Ok(());
+        }
+
         let res = self.gen_response(&text).await?;
         self.gen_audio(&res).await?;
 
@@ -145,6 +154,11 @@ impl Receiver {
         let data = res.json::<serde_json::Value>().await?;
         if let Some(text) = data["text"].as_str() {
             info!("Transcription: {:?}", text);
+
+            self.controller
+                .active
+                .store(text.to_lowercase().contains("adam"), Ordering::SeqCst);
+
             return Ok(text.to_string());
         }
 
@@ -210,7 +224,7 @@ impl Receiver {
 
         if let Some(handler_lock) = manager.get(self.guild_id.clone()) {
             let mut handler = handler_lock.lock().await;
-            handler.play_input(input);
+            let _ = handler.play_input(input).set_volume(0.5);
 
             if let Ok(mut last_reply) = self.controller.last_reply.lock() {
                 *last_reply = Some(VoiceReply {
