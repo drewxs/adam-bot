@@ -9,7 +9,7 @@ RUN cargo build --release
 
 FROM debian:sid-slim
 
-RUN apt-get update && apt-get install -y ca-certificates
+RUN apt-get update && apt-get install -y curl ca-certificates ffmpeg libopus-dev
 
 WORKDIR /bot
 COPY --from=builder /bot/target/release/adam .
