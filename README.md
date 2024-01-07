@@ -1,16 +1,50 @@
-# Adam Bot
+# Adam (Discord Bot)
 
-Discord bot based on a friend.
+Models (OpenAI): gpt-3.5-turbo, whisper-1
+
+## Features
+
+- Messaging
+  - Reply detection
+  - Rate limiting
+- Comprehensive logging
+- Music
+  - YouTube search
+  - Queue controls
+- Voice conversation
+  - Live transcriptions
+  - Transcription-based replies
+  - Text to speech
 
 ## Development
 
 #### Requirements
 
-- `rust` or `docker`, `docker-compose`
+For local development:
 
-Create `.env` from `.env.example`, tweak `src/cfg.rs`.
+- rust
+- ffmpeg
+- opus
+- youtube-dl
 
-Then either run `cargo run` or `docker-compose up`.
+OR
+
+For Dockerized development:
+
+- docker
+- docker-compose
+
+Create a `.env` file from `.env.example`, then tweak `src/cfg.rs` to your needs.
+
+Running:
+
+```sh
+# Locally
+cargo run
+
+# Using Docker
+docker-compose up
+```
 
 ### Fine-tuning
 
@@ -19,7 +53,8 @@ Then either run `cargo run` or `docker-compose up`.
 - `python@^3.11`
 - `poetry`
 
-Create a new file `model/<name>.jsonl` then update the path in `model/tune.py`, or update `model/train.jsonl`.
+Create a new file `model/<name>.jsonl` and update the path in `model/tune.py`.
+Alternatively, update `model/train.jsonl` directly.
 
 To queue up a fine-tuning job on OpenAI:
 
@@ -29,3 +64,7 @@ poetry shell
 poetry install
 poetry run python tune.py
 ```
+
+---
+
+[License](https://github.com/drewxs/adam-bot/blob/main/LICENSE)
