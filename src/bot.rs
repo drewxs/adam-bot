@@ -10,7 +10,7 @@ pub struct Bot {
     pub history: Arc<Mutex<History>>,
     pub client: reqwest::Client,
     pub model: String,
-    pub user_limits: Arc<Mutex<HashMap<u64, (u64, u64)>>>,
+    pub user_limits: Arc<Mutex<HashMap<u64, (i64, u64)>>>,
 }
 
 impl Bot {

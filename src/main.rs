@@ -8,12 +8,12 @@ mod message;
 mod music;
 mod openai;
 mod state;
-mod utils;
 mod voice;
 
 use std::collections::HashSet;
 use std::env;
 
+use chrono::Utc;
 use dotenv::dotenv;
 use log::{error, info};
 use reqwest::Client as HttpClient;
@@ -33,7 +33,6 @@ use crate::cfg::{ADAM_ID, BOT_ID};
 use crate::logging::setup_logging;
 use crate::music::*;
 use crate::state::{HttpKey, ShardManagerContainer};
-use crate::utils::current_time_seconds;
 
 #[async_trait]
 impl EventHandler for Bot {
@@ -44,7 +43,7 @@ impl EventHandler for Bot {
 
         if let Ok(mut user_limits) = self.user_limits.lock() {
             if let Some((last_time, count)) = user_limits.get(&msg.author.id.into()) {
-                let current_time = current_time_seconds();
+                let current_time = Utc::now().timestamp();
                 if current_time - last_time < 60 && *count >= 10 {
                     info!("Exceeded rate limit: {}", msg.author.name);
                     return;
@@ -52,7 +51,7 @@ impl EventHandler for Bot {
             }
 
             let (timestamp, count) = user_limits.entry(msg.author.id.into()).or_insert((0, 0));
-            let current_time = current_time_seconds();
+            let current_time = Utc::now().timestamp();
 
             if current_time - *timestamp >= 60 {
                 *timestamp = current_time;
