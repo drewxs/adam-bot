@@ -10,21 +10,7 @@ use crate::openai::{ChatMessage, ChatRequest, OPENAI_API_URL};
 
 impl Bot {
     pub async fn gen_msg(&self, ctx: &Context, msg: &Message) {
-        let text = self.gen_with_prompt(&msg, SYS_PROMPT).await;
-
-        if let Ok(text) = text {
-            self.send_msg(&ctx, &msg, &text).await;
-        }
-    }
-
-    pub async fn gen_adam_dm(&self, ctx: &Context, msg: &Message) {
-        let prompt = format!(
-            "{} You are currently being messaged by yourself, reply with even snarkier and somewhat ominous responses.",
-            SYS_PROMPT
-        );
-        let text = self.gen_with_prompt(&msg, &prompt).await;
-
-        if let Ok(text) = text {
+        if let Ok(text) = self.gen_with_prompt(&msg, SYS_PROMPT).await {
             self.send_msg(&ctx, &msg, &text).await;
         }
     }

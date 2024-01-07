@@ -8,13 +8,15 @@ pub struct SavedMessage {
     pub content: String,
 }
 
+impl SavedMessage {
+    pub fn get(&self) -> String {
+        format!("{}: {}", self.author, self.content)
+    }
+}
+
 pub type History = Vec<SavedMessage>;
 
 impl Bot {
-    pub fn _get_history(&self) -> History {
-        self.history.lock().unwrap().clone()
-    }
-
     pub fn add_history(&self, author_id: &str, msg: &str) {
         if let Ok(mut history) = self.history.lock() {
             history.push(SavedMessage {
@@ -26,7 +28,8 @@ impl Bot {
         }
     }
 
-    pub fn _clear_history(&self) {
+    #[allow(dead_code)]
+    pub fn clear_history(&self) {
         info!("Clearing history");
 
         self.history.lock().unwrap().clear();
@@ -49,10 +52,8 @@ impl Bot {
         let mut msg = String::new();
 
         if let Ok(history) = self.history.lock() {
-            let mut i = 0;
-            while i < n && i < history.len() {
-                msg.push_str(&format!("{}: {}\n", history[i].author, history[i].content));
-                i += 1;
+            for i in 0..(n.min(history.len())) {
+                msg.push_str(&history[i].get());
             }
         }
 

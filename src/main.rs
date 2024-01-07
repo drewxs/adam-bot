@@ -29,7 +29,7 @@ use songbird::driver::DecodeMode;
 use songbird::SerenityInit;
 
 use crate::bot::Bot;
-use crate::cfg::{ADAM_ID, BOT_ID};
+use crate::cfg::BOT_ID;
 use crate::logging::setup_logging;
 use crate::music::*;
 use crate::state::{HttpKey, ShardManagerContainer};
@@ -81,11 +81,7 @@ impl EventHandler for Bot {
         }
 
         if dm {
-            if msg.author.id == ADAM_ID {
-                self.gen_adam_dm(&ctx, &msg).await;
-            } else {
-                self.gen_msg(&ctx, &msg).await;
-            }
+            self.gen_msg(&ctx, &msg).await;
         } else if content.contains("join") {
             self.join_channel(&ctx, &msg).await;
         } else if content.contains("leave") {
