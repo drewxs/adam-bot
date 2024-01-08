@@ -1,6 +1,6 @@
-FROM rust:1.74 as builder
+FROM rust:1.75 as builder
 
-RUN apt-get update && apt-get install -y cmake 
+RUN apt-get update && apt-get install -y cmake
 
 WORKDIR /bot
 COPY . .
