@@ -16,7 +16,6 @@ use std::env;
 use chrono::Utc;
 use dotenv::dotenv;
 use log::{error, info};
-use reqwest::Client as HttpClient;
 use serenity::async_trait;
 use serenity::framework::standard::macros::group;
 use serenity::framework::standard::{Configuration, StandardFramework};
@@ -134,7 +133,7 @@ async fn main() {
     let framework = StandardFramework::new().group(&GENERAL_GROUP);
     framework.configure(Configuration::new().owners(owners).prefix("~"));
 
-    let yt_client = HttpClient::new();
+    let yt_client = reqwest::Client::new();
     let songbird_cfg = songbird::Config::default().decode_mode(DecodeMode::Decode);
 
     let mut client = Client::builder(token, intents)

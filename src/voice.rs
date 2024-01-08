@@ -43,7 +43,6 @@ struct VoiceReply {
 
 struct VoiceController {
     last_tick_was_empty: AtomicBool,
-    active: AtomicBool,
     known_ssrcs: DashMap<u32, UserId>,
     accumulator: DashMap<u32, Slice>,
     last_reply: Mutex<Option<VoiceReply>>,
@@ -69,7 +68,6 @@ impl Receiver {
             json_client,
             multipart_client,
             controller: Arc::new(VoiceController {
-                active: AtomicBool::new(false),
                 last_tick_was_empty: AtomicBool::default(),
                 known_ssrcs: DashMap::new(),
                 accumulator: DashMap::new(),
@@ -96,20 +94,14 @@ impl Receiver {
         let filename = format!("cache/{}_{}.wav", slice.user_id, Utc::now().timestamp());
 
         self.save(&slice.bytes, &filename);
+
         slice.timestamp = Utc::now();
         slice.bytes.clear();
 
-        let text = self.transcribe(&filename).await?;
-
-        if !self.controller.active.load(Ordering::SeqCst) {
-            slice.timestamp = Utc::now();
-            slice.bytes.clear();
-
-            return Ok(());
+        if let Ok(text) = self.transcribe(&filename).await {
+            let res = self.gen_response(&text).await?;
+            self.gen_audio(&res).await?;
         }
-
-        let res = self.gen_response(&text).await?;
-        self.gen_audio(&res).await?;
 
         Ok(())
     }
@@ -155,14 +147,12 @@ impl Receiver {
         if let Some(text) = data["text"].as_str() {
             info!("Transcription: {:?}", text);
 
-            self.controller
-                .active
-                .store(text.to_lowercase().contains("adam"), Ordering::SeqCst);
+            if !text.to_lowercase().contains("adam") {
+                return Err(Error::msg("Not mentioned"));
+            }
 
             return Ok(text.to_string());
         }
-
-        fs::remove_file(filename)?;
 
         Err(Error::msg("Failed to transcribe audio"))
     }
@@ -245,20 +235,18 @@ impl EventHandler for Receiver {
             Ctx::SpeakingStateUpdate(Speaking {
                 speaking: _,
                 ssrc,
-                user_id,
+                user_id: Some(user_id),
                 ..
             }) => {
-                if let Some(user) = user_id {
-                    info!("{:?}: Speaking", ssrc);
+                info!("{:?} speaking", ssrc);
 
-                    self.controller.known_ssrcs.insert(*ssrc, *user);
+                self.controller.known_ssrcs.insert(*ssrc, *user_id);
 
-                    self.controller.accumulator.entry(*ssrc).or_insert(Slice {
-                        user_id: user.0,
-                        bytes: Vec::new(),
-                        timestamp: Utc::now(),
-                    });
-                }
+                self.controller.accumulator.entry(*ssrc).or_insert(Slice {
+                    user_id: user_id.0,
+                    bytes: Vec::new(),
+                    timestamp: Utc::now(),
+                });
             }
             Ctx::VoiceTick(tick) => {
                 let speaking = tick.speaking.len();
@@ -271,10 +259,9 @@ impl EventHandler for Receiver {
                         .store(true, Ordering::SeqCst);
 
                     for mut slice in self.controller.accumulator.iter_mut() {
-                        if slice.bytes.len() == 0 {
+                        if slice.bytes.is_empty() {
                             continue;
                         }
-
                         if let Err(e) = self.process(&mut slice).await {
                             info!("Processing error: {:?}", e);
                         }
@@ -288,31 +275,22 @@ impl EventHandler for Receiver {
                         if let Some(decoded_voice) = data.decoded_voice.as_ref() {
                             let mut bytes = decoded_voice.to_owned();
 
-                            match self.controller.accumulator.get_mut(&ssrc) {
-                                Some(mut slice) => {
-                                    slice.bytes.append(&mut bytes);
-                                }
-                                None => {
-                                    if let Some(user_id) = self.controller.known_ssrcs.get(ssrc) {
-                                        self.controller.accumulator.insert(
-                                            *ssrc,
-                                            Slice {
-                                                user_id: user_id.0,
-                                                bytes,
-                                                timestamp: Utc::now(),
-                                            },
-                                        );
-                                    }
-                                }
+                            if let Some(mut slice) = self.controller.accumulator.get_mut(&ssrc) {
+                                slice.bytes.append(&mut bytes);
+                            } else if let Some(user_id) = self.controller.known_ssrcs.get(ssrc) {
+                                self.controller.accumulator.insert(
+                                    *ssrc,
+                                    Slice {
+                                        user_id: user_id.0,
+                                        bytes,
+                                        timestamp: Utc::now(),
+                                    },
+                                );
                             }
-                        } else {
-                            info!("{}: Decode disabled", ssrc);
                         }
                     }
                 }
             }
-            Ctx::RtpPacket(_) => {}
-            Ctx::RtcpPacket(_) => {}
             Ctx::ClientDisconnect(ClientDisconnect { user_id, .. }) => {
                 info!("{:?} disconnected", user_id);
             }
@@ -342,7 +320,7 @@ impl Bot {
         if let Some(channel_id) = channel_id {
             info!("Joining voice channel");
 
-            ctx.set_activity(Some(ActivityData::listening("richard's music")));
+            ctx.set_activity(Some(ActivityData::listening("youtube music")));
 
             let manager = songbird::get(&ctx).await.unwrap().clone();
 
@@ -353,8 +331,6 @@ impl Bot {
 
                 handler.add_global_event(CoreEvent::SpeakingStateUpdate.into(), receiver.clone());
                 handler.add_global_event(CoreEvent::VoiceTick.into(), receiver.clone());
-                handler.add_global_event(CoreEvent::RtpPacket.into(), receiver.clone());
-                handler.add_global_event(CoreEvent::RtcpPacket.into(), receiver.clone());
                 handler.add_global_event(CoreEvent::ClientDisconnect.into(), receiver);
             }
         }
