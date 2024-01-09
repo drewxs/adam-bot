@@ -101,7 +101,7 @@ impl EventHandler for Bot {
 }
 
 #[group]
-#[commands(play, play_fade, queue, skip, stop)]
+#[commands(queue, skip, stop, vol)]
 struct General;
 
 #[tokio::main]

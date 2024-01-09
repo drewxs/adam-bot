@@ -1,107 +1,15 @@
 use std::env;
-use std::time::Duration;
 
 use log::{error, info};
 use reqwest::Client as HttpClient;
 use reqwest::Error;
-use serenity::async_trait;
 use serenity::client::Context;
 use serenity::framework::standard::macros::command;
 use serenity::framework::standard::{Args, CommandResult};
 use serenity::model::channel::Message;
 use songbird::input::YoutubeDl;
-use songbird::{Event, EventContext, EventHandler, TrackEvent};
 
 use crate::state::HttpKey;
-
-struct SongFader {}
-
-#[async_trait]
-impl EventHandler for SongFader {
-    async fn act(&self, ctx: &EventContext<'_>) -> Option<Event> {
-        if let EventContext::Track(&[(state, track)]) = ctx {
-            let _ = track.set_volume(state.volume / 2.0);
-
-            if state.volume < 1e-2 {
-                let _ = track.stop();
-                Some(Event::Cancel)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-}
-
-struct SongEndNotifier {}
-
-#[async_trait]
-impl EventHandler for SongEndNotifier {
-    async fn act(&self, _ctx: &EventContext<'_>) -> Option<Event> {
-        None
-    }
-}
-
-#[command]
-#[only_in(guilds)]
-pub async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let search = args.message();
-
-    info!("Searching for {}", search);
-
-    let guild_id = msg.guild_id.unwrap();
-    let manager = songbird::get(ctx).await.unwrap().clone();
-
-    if let Some(handler_lock) = manager.get(guild_id) {
-        let mut handler = handler_lock.lock().await;
-
-        let (youtube_dl, url) = find_song(&ctx, search).await?;
-
-        let _ = handler.play_input(youtube_dl.into()).set_volume(0.03);
-
-        info!("Playing {}", url);
-    } else {
-        error!("Not in a voice channel");
-    }
-
-    Ok(())
-}
-
-#[command]
-#[only_in(guilds)]
-pub async fn play_fade(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
-    let search = args.message();
-
-    info!("Searching for {}", search);
-
-    let guild_id = msg.guild_id.unwrap();
-    let manager = songbird::get(ctx).await.unwrap().clone();
-
-    if let Some(handler_lock) = manager.get(guild_id) {
-        let mut handler = handler_lock.lock().await;
-
-        let (youtube_dl, url) = find_song(&ctx, search).await?;
-
-        let song = handler.play_input(youtube_dl.into());
-
-        info!("Playing {}", url);
-
-        // Periodically make a track quieter until it can be no longer heard.
-        let _ = song.add_event(
-            Event::Periodic(Duration::from_secs(5), Some(Duration::from_secs(7))),
-            SongFader {},
-        );
-
-        // Fire an event once an audio track completes,
-        // either due to hitting the end of the bytestream or stopped by user code.
-        let _ = song.add_event(Event::Track(TrackEvent::End), SongEndNotifier {});
-    } else {
-        error!("Not in a voice channel");
-    }
-
-    Ok(())
-}
 
 #[command]
 #[only_in(guilds)]
@@ -123,7 +31,8 @@ pub async fn queue(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
         // Use lazy restartable sources to make sure that we don't pay
         // for decoding, playback on tracks which aren't actually live yet.
-        handler.enqueue_input(youtube_dl.into()).await;
+        let handle = handler.enqueue_input(youtube_dl.into()).await;
+        let _ = handle.set_volume(0.05);
 
         let _ = msg
             .channel_id
@@ -182,6 +91,30 @@ pub async fn stop(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
         queue.stop();
 
         let _ = msg.channel_id.say(&ctx.http, "Queue cleared.").await;
+    } else {
+        error!("Not in a voice channel");
+    }
+
+    Ok(())
+}
+
+#[command]
+#[only_in(guilds)]
+pub async fn vol(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let volume = args.message().parse::<f32>().unwrap() / 100.0;
+
+    let guild_id = msg.guild_id.unwrap();
+    let manager = songbird::get(ctx).await.unwrap().clone();
+
+    if let Some(call) = manager.get(guild_id) {
+        call.lock()
+            .await
+            .queue()
+            .current_queue()
+            .iter()
+            .for_each(|t| {
+                let _ = t.set_volume(volume);
+            });
     } else {
         error!("Not in a voice channel");
     }
