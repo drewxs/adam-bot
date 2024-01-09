@@ -199,6 +199,11 @@ async fn get_http_client(ctx: &Context) -> HttpClient {
 async fn find_song(ctx: &Context, search: &str) -> Result<(YoutubeDl, String), Error> {
     let client = get_http_client(ctx).await;
 
+    if search.starts_with("https://") {
+        let youtube_dl = YoutubeDl::new(client, search.to_string());
+        return Ok((youtube_dl, search.to_string()));
+    }
+
     let yt_api_key = env::var("YOUTUBE_API_KEY").expect("YOUTUBE_API_KEY not set");
 
     let search_results = client
