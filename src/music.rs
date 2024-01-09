@@ -207,7 +207,6 @@ async fn find_song(ctx: &Context, search: &str) -> Result<(YoutubeDl, String), E
             ("key", yt_api_key.as_str()),
             ("type", "video"),
             ("maxResults", "1"),
-            ("videoDuration", "short"),
             ("q", search),
         ])
         .send()
