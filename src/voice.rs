@@ -147,7 +147,10 @@ impl Receiver {
         if let Some(text) = data["text"].as_str() {
             info!("Transcription: {:?}", text);
 
-            if !text.to_lowercase().contains("adam") {
+            if !["adam", "and", "i don't know"]
+                .iter()
+                .any(|s| text.to_lowercase().contains(s))
+            {
                 return Err(Error::msg("Not mentioned"));
             }
 
