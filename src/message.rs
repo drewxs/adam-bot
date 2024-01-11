@@ -10,9 +10,13 @@ use crate::openai::{ChatMessage, ChatRequest, OPENAI_API_URL};
 
 impl Bot {
     pub async fn gen_msg(&self, ctx: &Context, msg: &Message) {
+        let typing = msg.channel_id.start_typing(&ctx.http);
+
         if let Ok(text) = self.gen_with_prompt(&msg, SYS_PROMPT).await {
             self.send_msg(&ctx, &msg, &text).await;
         }
+
+        typing.stop();
     }
 
     pub async fn gen_with_prompt(&self, msg: &Message, sys_prompt: &str) -> Result<String, Error> {
@@ -68,7 +72,8 @@ impl Bot {
         }
     }
 
-    pub async fn _send_dm(&self, ctx: &Context, msg: &Message, res: &str) {
+    #[allow(dead_code)]
+    pub async fn send_dm(&self, ctx: &Context, msg: &Message, res: &str) {
         self.handle_msg(&msg, &res).await;
 
         if let Err(e) = msg
