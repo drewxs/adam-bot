@@ -129,7 +129,7 @@ async fn get_http_client(ctx: &Context) -> HttpClient {
         .expect("Http client not found")
 }
 
-async fn find_song(ctx: &Context, search: &str) -> Result<(YoutubeDl, String), Error> {
+pub async fn find_song(ctx: &Context, search: &str) -> Result<(YoutubeDl, String), Error> {
     let client = get_http_client(ctx).await;
 
     if search.starts_with("https://") {

@@ -21,6 +21,7 @@ use songbird::{CoreEvent, Event, EventContext as Ctx, EventHandler};
 
 use crate::bot::Bot;
 use crate::cfg::SYS_PROMPT;
+use crate::music::find_song;
 use crate::openai::{
     build_json_client, build_multipart_client, ChatMessage, ChatRequest, SpeechRequest,
     OPENAI_API_URL,
@@ -99,8 +100,57 @@ impl Receiver {
         slice.bytes.clear();
 
         if let Ok(text) = self.transcribe(&filename).await {
-            let res = self.gen_response(&text).await?;
-            self.gen_audio(&res).await?;
+            match text.to_lowercase().as_str() {
+                t if t.starts_with("play") => {
+                    let search = t.trim_start_matches("play").trim();
+
+                    info!("Searching for {}", search);
+
+                    let guild_id = self.guild_id;
+                    let manager = songbird::get(&self.ctx).await.unwrap().clone();
+
+                    if let Some(handler_lock) = manager.get(guild_id) {
+                        let mut handler = handler_lock.lock().await;
+
+                        let (youtube_dl, url) = find_song(&self.ctx, search).await?;
+
+                        info!("Queueing {}", url);
+
+                        let (input, _) =
+                            self.gen_audio(&format!("Queueing up, {}", search)).await?;
+                        let _ = handler.play_input(input).set_volume(0.5);
+
+                        let handle = handler.enqueue_input(youtube_dl.into()).await;
+                        let _ = handle.set_volume(0.05);
+                    }
+                }
+                "stop" | "stop." => {
+                    let guild_id = self.guild_id;
+                    let manager = songbird::get(&self.ctx).await.unwrap().clone();
+
+                    if let Some(handler_lock) = manager.get(guild_id) {
+                        let mut handler = handler_lock.lock().await;
+                        let _ = handler.stop();
+
+                        let queue = handler.queue();
+                        queue.stop();
+
+                        let (input, _) = self
+                            .gen_audio("Just say the word and I'll be back to play some tunes")
+                            .await?;
+                        let _ = handler.play_input(input).set_volume(0.5);
+                    }
+                }
+                t if ["adam", "and", "i don't know"]
+                    .iter()
+                    .any(|s| t.to_lowercase().contains(s)) =>
+                {
+                    let res = self.gen_response(&text).await?;
+                    let (input, duration) = self.gen_audio(&res).await?;
+                    self.play_audio(input, duration).await?;
+                }
+                _ => {}
+            }
         }
 
         Ok(())
@@ -146,14 +196,6 @@ impl Receiver {
         let data = res.json::<serde_json::Value>().await?;
         if let Some(text) = data["text"].as_str() {
             info!("Transcription: {:?}", text);
-
-            if !["adam", "and", "i don't know"]
-                .iter()
-                .any(|s| text.to_lowercase().contains(s))
-            {
-                return Err(Error::msg("Not mentioned"));
-            }
-
             return Ok(text.to_string());
         }
 
@@ -186,7 +228,7 @@ impl Receiver {
         Ok(res)
     }
 
-    async fn gen_audio(&self, text: &str) -> Result<(), Error> {
+    async fn gen_audio(&self, text: &str) -> Result<(Input, u64), Error> {
         let res = self
             .json_client
             .post(format!("{OPENAI_API_URL}/audio/speech"))
@@ -213,6 +255,10 @@ impl Receiver {
             return Err(Error::msg("Generated audio is not playable"));
         }
 
+        Ok((input, duration))
+    }
+
+    async fn play_audio(&self, input: Input, duration: u64) -> Result<(), Error> {
         let manager = songbird::get(&self.ctx).await.unwrap();
 
         if let Some(handler_lock) = manager.get(self.guild_id.clone()) {

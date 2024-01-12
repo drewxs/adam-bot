@@ -11,10 +11,11 @@ Models (OpenAI): gpt-3.5-turbo, whisper-1
 - Music
   - YouTube search
   - Queue controls
-- Voice conversation
+- Voice
   - Live transcriptions
   - Transcription-based replies
   - Text to speech
+  - Music controls
 
 ## Development
 
@@ -25,7 +26,7 @@ For local development:
 - rust
 - ffmpeg
 - opus
-- youtube-dl
+- yt-dlp
 
 OR
 
