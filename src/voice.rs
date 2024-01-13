@@ -100,6 +100,11 @@ impl Receiver {
         slice.bytes.clear();
 
         if let Ok(text) = self.transcribe(&filename).await {
+            let text: String = text
+                .chars()
+                .filter(|&c| c != ',' && c != '.' && c != '!')
+                .collect();
+
             match text.to_lowercase().as_str() {
                 t if t.starts_with("play") => {
                     let search = t.trim_start_matches("play").trim();
@@ -124,7 +129,7 @@ impl Receiver {
                         let _ = handle.set_volume(0.05);
                     }
                 }
-                "stop" | "stop." => {
+                "stop" => {
                     let guild_id = self.guild_id;
                     let manager = songbird::get(&self.ctx).await.unwrap().clone();
 
@@ -145,6 +150,7 @@ impl Receiver {
                     .iter()
                     .any(|s| t.to_lowercase().contains(s)) =>
                 {
+                    let text = text.replace("adam", "");
                     let res = self.gen_response(&text).await?;
                     let (input, duration) = self.gen_audio(&res).await?;
                     self.play_audio(input, duration).await?;
