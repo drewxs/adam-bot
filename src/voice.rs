@@ -83,7 +83,7 @@ impl Receiver {
                 let elapsed = Utc::now() - reply.timestamp;
                 let remaining = reply.duration - elapsed;
 
-                if remaining > Duration::milliseconds(0) {
+                if remaining > Duration::milliseconds(0) || slice.bytes.len() < 48000 {
                     slice.timestamp = Utc::now();
                     slice.bytes.clear();
 
@@ -100,14 +100,20 @@ impl Receiver {
         slice.bytes.clear();
 
         if let Ok(text) = self.transcribe(&filename).await {
-            let text: String = text
+            let text = text.to_lowercase();
+            let mentioned = ["adam", "add", "i don't know"]
+                .iter()
+                .any(|s| text.contains(s));
+
+            match text
+                .replace("adam", "")
                 .chars()
                 .filter(|&c| c != ',' && c != '.' && c != '!')
-                .collect();
-
-            match text.to_lowercase().as_str() {
-                t if t.starts_with("play") => {
-                    let search = t.trim_start_matches("play").trim();
+                .collect::<String>()
+                .as_str()
+            {
+                t if t.starts_with("play") || t.starts_with("clay") || t.starts_with("lay") => {
+                    let search = t.split_whitespace().skip(1).collect::<Vec<_>>().join(" ");
 
                     info!("Searching for {}", search);
 
@@ -117,19 +123,19 @@ impl Receiver {
                     if let Some(handler_lock) = manager.get(guild_id) {
                         let mut handler = handler_lock.lock().await;
 
-                        let (youtube_dl, url) = find_song(&self.ctx, search).await?;
+                        let (youtube_dl, url) = find_song(&self.ctx, &search).await?;
 
                         info!("Queueing {}", url);
 
                         let (input, _) =
-                            self.gen_audio(&format!("Queueing up, {}", search)).await?;
+                            self.gen_audio(&format!("Queueing up, {}", &search)).await?;
                         let _ = handler.play_input(input).set_volume(0.5);
 
                         let handle = handler.enqueue_input(youtube_dl.into()).await;
                         let _ = handle.set_volume(0.05);
                     }
                 }
-                "stop" => {
+                t if t.starts_with("stop") => {
                     let guild_id = self.guild_id;
                     let manager = songbird::get(&self.ctx).await.unwrap().clone();
 
@@ -146,12 +152,8 @@ impl Receiver {
                         let _ = handler.play_input(input).set_volume(0.5);
                     }
                 }
-                t if ["adam", "and", "i don't know"]
-                    .iter()
-                    .any(|s| t.to_lowercase().contains(s)) =>
-                {
-                    let text = text.replace("adam", "");
-                    let res = self.gen_response(&text).await?;
+                t if mentioned => {
+                    let res = self.gen_response(&t).await?;
                     let (input, duration) = self.gen_audio(&res).await?;
                     self.play_audio(input, duration).await?;
                 }
