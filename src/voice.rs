@@ -107,6 +107,7 @@ impl Receiver {
 
             match text
                 .replace("adam", "")
+                .trim()
                 .chars()
                 .filter(|&c| c != ',' && c != '.' && c != '!')
                 .collect::<String>()
@@ -117,10 +118,9 @@ impl Receiver {
 
                     info!("Searching for {}", search);
 
-                    let guild_id = self.guild_id;
                     let manager = songbird::get(&self.ctx).await.unwrap().clone();
 
-                    if let Some(handler_lock) = manager.get(guild_id) {
+                    if let Some(handler_lock) = manager.get(self.guild_id) {
                         let mut handler = handler_lock.lock().await;
 
                         let (youtube_dl, url) = find_song(&self.ctx, &search).await?;
@@ -136,10 +136,9 @@ impl Receiver {
                     }
                 }
                 t if t.starts_with("stop") => {
-                    let guild_id = self.guild_id;
                     let manager = songbird::get(&self.ctx).await.unwrap().clone();
 
-                    if let Some(handler_lock) = manager.get(guild_id) {
+                    if let Some(handler_lock) = manager.get(self.guild_id) {
                         let mut handler = handler_lock.lock().await;
                         let _ = handler.stop();
 
