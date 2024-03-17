@@ -101,9 +101,7 @@ impl Receiver {
 
         if let Ok(text) = self.transcribe(&filename).await {
             let text = text.to_lowercase();
-            let mentioned = ["adam", "add", "i don't know"]
-                .iter()
-                .any(|s| text.contains(s));
+            let mentioned = ["adam", "add", "i don't"].iter().any(|s| text.contains(s));
 
             match text
                 .replace("adam", "")
