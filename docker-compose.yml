@@ -1,7 +1,6 @@
-version: "3"
-
 services:
   bot:
+    container_name: adam
     build: .
     env_file:
       - .env
